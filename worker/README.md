@@ -36,16 +36,6 @@ worker_name: my-builder-01
 
 # Optional
 
-# Maximum resource tier this worker can handle.
-# Projects are scheduled only to workers that meet or exceed their tier requirement.
-# Valid values: small, medium, large  (default: small)
-resource_tier_max: small
-
-# Maximum dependency level this worker can handle.
-# Projects are scheduled only to workers that meet or exceed their dep level.
-# Valid values: base, moderate, full  (default: base)
-dep_level_max: base
-
 # Root directory for the worker's persistent cache.
 # Kiln source is kept at {workspace_dir}/kiln/
 # Project repos are kept at {workspace_dir}/projects/
@@ -63,7 +53,7 @@ poll_interval_seconds: 30
 
 1. Log in to the tracker dashboard
 2. Go to **Admin -> Workers -> Add Worker**
-3. Enter the worker name and select a resource tier
+3. Enter the worker name, resource tier, and dependency level
 4. Copy the token shown — it is only displayed once
 
 The token goes in the `auth_token` field of the config file.

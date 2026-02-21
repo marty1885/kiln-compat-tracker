@@ -35,24 +35,10 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
     if (auto err = glz::read_json(hb, body); err)
         co_return error_response(k400BadRequest, glz::format_error(err, body));
 
-    // Validate resource_tier to prevent injection (we inline it in SQL
-    // because Drogon's binary protocol can't cast text params to enums)
-    if (hb.resource_tier_max != "small" &&
-        hb.resource_tier_max != "medium" &&
-        hb.resource_tier_max != "large")
-        co_return error_response(k400BadRequest, "invalid resource_tier_max");
-
-    if (hb.dep_level_max != "base" &&
-        hb.dep_level_max != "moderate" &&
-        hb.dep_level_max != "full")
-        co_return error_response(k400BadRequest, "invalid dep_level_max");
-
     auto db = app().getDbClient();
     co_await db->execSqlCoro(
         "UPDATE workers SET arch=$1, os=$2, os_version=$3, distro=$4, cpu_model=$5, "
-        "cores=$6, ram_mb=$7, resource_tier_max='" + hb.resource_tier_max + "'::resource_tier, "
-        "dep_level_max='" + hb.dep_level_max + "'::dep_level, "
-        "compiler=$8, compiler_version=$9, last_seen=now() "
+        "cores=$6, ram_mb=$7, compiler=$8, compiler_version=$9, last_seen=now() "
         "WHERE auth_token=$10",
         hb.arch, hb.os, hb.os_version, hb.distro, hb.cpu_model,
         hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, token);

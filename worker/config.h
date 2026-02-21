@@ -11,8 +11,6 @@ struct WorkerConfig {
     std::string server_url;
     std::string auth_token;
     std::string worker_name;
-    std::string resource_tier_max = "small";
-    std::string dep_level_max = "base";
     std::string workspace_dir;
     int poll_interval_seconds = 30;
 
@@ -30,10 +28,6 @@ struct WorkerConfig {
         c.auth_token = yaml["auth_token"].as<std::string>();
         c.worker_name = yaml["worker_name"].as<std::string>();
 
-        if (yaml["resource_tier_max"])
-            c.resource_tier_max = yaml["resource_tier_max"].as<std::string>();
-        if (yaml["dep_level_max"])
-            c.dep_level_max = yaml["dep_level_max"].as<std::string>();
         if (yaml["workspace_dir"])
             c.workspace_dir = yaml["workspace_dir"].as<std::string>();
         else

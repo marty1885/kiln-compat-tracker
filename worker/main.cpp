@@ -159,8 +159,6 @@ private:
             .cpu_model = sysinfo_.cpu_model,
             .cores = sysinfo_.cores,
             .ram_mb = sysinfo_.ram_mb,
-            .resource_tier_max = config_.resource_tier_max,
-            .dep_level_max = config_.dep_level_max,
             .compiler = compiler_,
             .compiler_version = compiler_version_,
         };
