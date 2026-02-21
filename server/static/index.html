@@ -816,13 +816,13 @@ async function saveWorker() {
             body: JSON.stringify({ name, resource_tier_max: tier, dep_level_max: depLevel })
         });
 
+        const text = await res.text();
         if (!res.ok) {
-            const text = await res.text();
             document.getElementById('worker-error').textContent = text || 'Failed to create worker';
             return;
         }
 
-        const result = JSON.parse(await res.text());
+        const result = JSON.parse(text);
         document.getElementById('worker-error').textContent = '';
         document.getElementById('worker-save-btn').style.display = 'none';
         document.getElementById('worker-token-result').innerHTML =
