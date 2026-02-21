@@ -679,7 +679,7 @@ async function loadWorkers() {
         }
         let html = '<div class="worker-cards">';
         for (const w of workers) {
-            const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
+            const online = w.age_seconds < 5 * 60;
             html += '<div class="worker-card">';
             html += '<h3>' + escHtml(w.name) + ' <span class="' + (online ? 'online' : 'offline') + '">(' + (online ? 'online' : 'offline') + ')</span></h3>';
             const distroStr = w.distro ? ' / ' + escHtml(w.distro) : '';
@@ -707,7 +707,7 @@ async function loadAdminWorkers() {
         }
         let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Dep Level</th><th>Arch/Distro/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
         for (const w of workers) {
-            const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
+            const online = w.age_seconds < 5 * 60;
             html += '<tr>';
             html += '<td>' + escHtml(w.name) + '</td>';
             html += '<td>' + escHtml(w.resource_tier_max) + '</td>';

@@ -82,7 +82,9 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "SELECT w.id, w.name, w.arch, w.os, w.os_version, w.distro, w.cpu_model, "
-        "w.cores, w.ram_mb, w.resource_tier_max::text, w.dep_level_max::text, to_char(w.last_seen AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_seen, "
+        "w.cores, w.ram_mb, w.resource_tier_max::text, w.dep_level_max::text, "
+        "to_char(w.last_seen AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_seen, "
+        "EXTRACT(EPOCH FROM now() - w.last_seen)::bigint AS age_seconds, "
         "p.name AS current_job "
         "FROM workers w "
         "LEFT JOIN active_jobs aj ON aj.worker_id = w.id AND aj.reaped_at IS NULL "
@@ -104,6 +106,7 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
             .resource_tier_max = row["resource_tier_max"].as<std::string>(),
             .dep_level_max = row["dep_level_max"].as<std::string>(),
             .last_seen = row["last_seen"].as<std::string>(),
+            .age_seconds = row["age_seconds"].as<int64_t>(),
             .current_job = row["current_job"].isNull()
                 ? std::nullopt : std::optional{row["current_job"].as<std::string>()},
         });

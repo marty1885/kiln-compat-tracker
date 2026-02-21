@@ -109,6 +109,7 @@ struct WorkerInfo {
     std::string resource_tier_max;
     std::string dep_level_max;
     std::string last_seen;
+    int64_t age_seconds{};
     std::optional<std::string> current_job;
 };
 
@@ -205,6 +206,7 @@ struct WorkerAdminInfo {
     std::string resource_tier_max;
     std::string dep_level_max;
     std::string last_seen;
+    int64_t age_seconds{};
     std::optional<std::string> current_job;
 };
 
