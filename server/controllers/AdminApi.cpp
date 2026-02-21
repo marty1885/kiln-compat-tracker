@@ -159,9 +159,6 @@ Task<HttpResponsePtr> AdminApi::getKilnHash(HttpRequestPtr req) {
     co_return json_response(KilnHashInfo{.git_hash = hash});
 }
 
-// TODO: Replace manual set with a background poller that calls the GitHub API:
-//   GET https://api.github.com/repos/marty1885/kiln/commits/HEAD
-//   and updates current_kiln_hash automatically when a new commit lands.
 Task<HttpResponsePtr> AdminApi::setKilnHash(HttpRequestPtr req) {
     if (!is_admin(req))
         co_return error_response(k401Unauthorized);

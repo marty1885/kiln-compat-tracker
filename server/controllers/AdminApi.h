@@ -13,7 +13,6 @@ public:
     ADD_METHOD_TO(AdminApi::login, "/api/v1/auth/login", drogon::Post);
     ADD_METHOD_TO(AdminApi::logout, "/api/v1/auth/logout", drogon::Post);
     ADD_METHOD_TO(AdminApi::invite, "/api/v1/auth/invite", drogon::Post);
-    // Kiln version — manual set for now; TODO: replace with GitHub API polling
     ADD_METHOD_TO(AdminApi::getKilnHash, "/api/v1/admin/kiln-hash", drogon::Get);
     ADD_METHOD_TO(AdminApi::setKilnHash, "/api/v1/admin/kiln-hash", drogon::Post);
     METHOD_LIST_END

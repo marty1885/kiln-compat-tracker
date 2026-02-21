@@ -23,6 +23,24 @@ inline ResourceTier resource_tier_from_string(const std::string& s) {
     return ResourceTier::Small;
 }
 
+// Dependency levels — maps to DB enum
+enum class DepLevel { Base, Moderate, Full };
+
+inline std::string dep_level_to_string(DepLevel l) {
+    switch (l) {
+        case DepLevel::Base: return "base";
+        case DepLevel::Moderate: return "moderate";
+        case DepLevel::Full: return "full";
+    }
+    return "base";
+}
+
+inline DepLevel dep_level_from_string(const std::string& s) {
+    if (s == "moderate") return DepLevel::Moderate;
+    if (s == "full") return DepLevel::Full;
+    return DepLevel::Base;
+}
+
 // Build status
 enum class BuildStatus { Pass, Fail, Timeout, Error };
 

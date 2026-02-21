@@ -243,6 +243,15 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 <option value="large">Large</option>
             </select>
         </label>
+        <label>Dep Level
+            <select id="proj-dep-level">
+                <option value="base">Base</option>
+                <option value="moderate">Moderate</option>
+                <option value="full">Full</option>
+            </select>
+        </label>
+        <label>OS Filter <input type="text" id="proj-os-filter" placeholder="linux,freebsd"></label>
+        <div style="font-size:12px;color:#484f58;margin-top:2px">(leave empty for any OS)</div>
         <label>Cooldown (minutes) <input type="number" id="proj-cooldown" value="30"></label>
         <label><input type="checkbox" id="proj-tests"> Run Tests</label>
         <div class="modal-actions">
@@ -263,6 +272,13 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
                 <option value="large">Large</option>
+            </select>
+        </label>
+        <label>Max Dep Level
+            <select id="worker-dep-level">
+                <option value="base">Base</option>
+                <option value="moderate">Moderate</option>
+                <option value="full">Full</option>
             </select>
         </label>
         <div id="worker-token-result"></div>
@@ -303,6 +319,13 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
                 <option value="large">Large</option>
+            </select>
+        </label>
+        <label>Max Dep Level
+            <select id="edit-worker-dep-level">
+                <option value="base">Base</option>
+                <option value="moderate">Moderate</option>
+                <option value="full">Full</option>
             </select>
         </label>
         <div class="modal-actions">
@@ -536,7 +559,7 @@ async function loadProjects() {
             document.getElementById('projects-container').innerHTML = '<p style="color:#8b949e">No projects yet.</p>';
             return;
         }
-        let html = '<table class="project-list"><thead><tr><th>Name</th><th>Repo</th><th>Branch</th><th>Tier</th><th>Cooldown</th><th>Tests</th><th>Status</th>';
+        let html = '<table class="project-list"><thead><tr><th>Name</th><th>Repo</th><th>Branch</th><th>Tier</th><th>Dep Level</th><th>OS Filter</th><th>Cooldown</th><th>Tests</th><th>Status</th>';
         if (authState.logged_in) html += '<th>Actions</th>';
         html += '</tr></thead><tbody>';
         for (const p of projects) {
@@ -545,6 +568,8 @@ async function loadProjects() {
             html += '<td><a href="' + escHtml(p.repo_url) + '" target="_blank">' + escHtml(p.repo_url).substring(0, 40) + '...</a></td>';
             html += '<td>' + escHtml(p.branch) + '</td>';
             html += '<td>' + escHtml(p.resource_tier) + '</td>';
+            html += '<td>' + escHtml(p.dep_level) + '</td>';
+            html += '<td>' + (p.os_filter ? escHtml(p.os_filter) : '<span style="color:#484f58">any</span>') + '</td>';
             html += '<td>' + p.cooldown_minutes + 'm</td>';
             html += '<td>' + (p.run_tests ? 'Yes' : 'No') + '</td>';
             html += '<td>' + (p.enabled ? '<span class="enabled-badge">enabled</span>' : '<span class="disabled-badge">disabled</span>') + '</td>';
@@ -574,6 +599,8 @@ function openAddProject() {
     document.getElementById('proj-pinned').value = '';
     document.getElementById('proj-build-cmd').value = '';
     document.getElementById('proj-tier').value = 'small';
+    document.getElementById('proj-dep-level').value = 'base';
+    document.getElementById('proj-os-filter').value = '';
     document.getElementById('proj-cooldown').value = '30';
     document.getElementById('proj-tests').checked = false;
     document.getElementById('project-modal').classList.add('active');
@@ -591,6 +618,8 @@ async function editProject(id) {
     document.getElementById('proj-pinned').value = p.pinned_commit || '';
     document.getElementById('proj-build-cmd').value = p.build_command || '';
     document.getElementById('proj-tier').value = p.resource_tier;
+    document.getElementById('proj-dep-level').value = p.dep_level || 'base';
+    document.getElementById('proj-os-filter').value = p.os_filter || '';
     document.getElementById('proj-cooldown').value = p.cooldown_minutes;
     document.getElementById('proj-tests').checked = p.run_tests;
     document.getElementById('project-modal').classList.add('active');
@@ -607,6 +636,8 @@ async function saveProject() {
         repo_url: document.getElementById('proj-url').value,
         branch: document.getElementById('proj-branch').value || 'HEAD',
         resource_tier: document.getElementById('proj-tier').value,
+        dep_level: document.getElementById('proj-dep-level').value,
+        os_filter: document.getElementById('proj-os-filter').value.trim(),
         cooldown_minutes: parseInt(document.getElementById('proj-cooldown').value) || 30,
         run_tests: document.getElementById('proj-tests').checked
     };
@@ -651,10 +682,10 @@ async function loadWorkers() {
             const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
             html += '<div class="worker-card">';
             html += '<h3>' + escHtml(w.name) + ' <span class="' + (online ? 'online' : 'offline') + '">(' + (online ? 'online' : 'offline') + ')</span></h3>';
-            const distroStr = w.distro ? escHtml(w.distro) + ' ' : '';
-            html += '<div class="detail">' + escHtml(w.arch) + ' / ' + distroStr + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
+            const distroStr = w.distro ? ' / ' + escHtml(w.distro) : '';
+            html += '<div class="detail">' + escHtml(w.arch) + distroStr + ' / ' + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
             html += '<div class="detail">' + escHtml(w.cpu_model) + ' &middot; ' + w.cores + ' cores &middot; ' + w.ram_mb + ' MB</div>';
-            html += '<div class="detail">Tier: ' + escHtml(w.resource_tier_max) + ' &middot; Last seen: ' + timeAgo(w.last_seen) + '</div>';
+            html += '<div class="detail">Tier: ' + escHtml(w.resource_tier_max) + ' &middot; Dep: ' + escHtml(w.dep_level_max) + ' &middot; Last seen: ' + timeAgo(w.last_seen) + '</div>';
             if (w.current_job) html += '<div class="detail">Building: <span class="job-badge">' + escHtml(w.current_job) + '</span></div>';
             html += '</div>';
         }
@@ -674,14 +705,15 @@ async function loadAdminWorkers() {
             document.getElementById('admin-workers-container').innerHTML = '<p style="color:#8b949e">No workers yet. Add one above.</p>';
             return;
         }
-        let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Arch/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Dep Level</th><th>Arch/Distro/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
         for (const w of workers) {
             const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
             html += '<tr>';
             html += '<td>' + escHtml(w.name) + '</td>';
             html += '<td>' + escHtml(w.resource_tier_max) + '</td>';
-            const distro = w.distro ? escHtml(w.distro) + ' ' : '';
-            html += '<td>' + escHtml(w.arch || '-') + ' / ' + distro + escHtml(w.os || '-') + ' ' + escHtml(w.os_version || '') + '</td>';
+            html += '<td>' + escHtml(w.dep_level_max) + '</td>';
+            const distro = w.distro ? ' / ' + escHtml(w.distro) : '';
+            html += '<td>' + escHtml(w.arch || '-') + distro + ' / ' + escHtml(w.os || '-') + ' ' + escHtml(w.os_version || '') + '</td>';
             html += '<td>' + timeAgo(w.last_seen) + '</td>';
             html += '<td>' + (w.current_job ? '<span class="job-badge">' + escHtml(w.current_job) + '</span>' : (online ? '<span class="enabled-badge">online</span>' : '<span class="disabled-badge">offline</span>')) + '</td>';
             html += '<td class="token-cell">';
@@ -689,7 +721,7 @@ async function loadAdminWorkers() {
             html += '<button class="btn" onclick="openRevealToken(' + w.id + ')">Show</button>';
             html += '</td>';
             html += '<td>';
-            html += '<button class="btn" onclick="openEditWorker(' + w.id + ',\'' + escHtml(w.name) + '\',\'' + escHtml(w.resource_tier_max) + '\')">Edit</button>';
+            html += '<button class="btn" onclick="openEditWorker(' + w.id + ',\'' + escHtml(w.name) + '\',\'' + escHtml(w.resource_tier_max) + '\',\'' + escHtml(w.dep_level_max) + '\')">Edit</button>';
             html += '<button class="btn btn-danger" onclick="deleteWorker(' + w.id + ',\'' + escHtml(w.name) + '\')">Delete</button>';
             html += '</td>';
             html += '</tr>';
@@ -752,6 +784,7 @@ function openAddWorker() {
     document.getElementById('worker-error').textContent = '';
     document.getElementById('worker-name').value = '';
     document.getElementById('worker-tier').value = 'small';
+    document.getElementById('worker-dep-level').value = 'base';
     document.getElementById('worker-token-result').innerHTML = '';
     document.getElementById('worker-save-btn').style.display = '';
     document.getElementById('worker-modal').classList.add('active');
@@ -769,6 +802,7 @@ function closeWorkerModal() {
 async function saveWorker() {
     const name = document.getElementById('worker-name').value.trim();
     const tier = document.getElementById('worker-tier').value;
+    const depLevel = document.getElementById('worker-dep-level').value;
 
     if (!name) {
         document.getElementById('worker-error').textContent = 'Worker name required';
@@ -779,7 +813,7 @@ async function saveWorker() {
         const res = await fetch(API + '/api/v1/admin/workers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, resource_tier_max: tier })
+            body: JSON.stringify({ name, resource_tier_max: tier, dep_level_max: depLevel })
         });
 
         if (!res.ok) {
@@ -813,11 +847,12 @@ async function deleteWorker(id, name) {
     loadAdminWorkers();
 }
 
-function openEditWorker(id, name, tier) {
+function openEditWorker(id, name, tier, depLevel) {
     document.getElementById('edit-worker-error').textContent = '';
     document.getElementById('edit-worker-id').value = id;
     document.getElementById('edit-worker-name').textContent = name;
     document.getElementById('edit-worker-tier').value = tier;
+    document.getElementById('edit-worker-dep-level').value = depLevel || 'base';
     document.getElementById('edit-worker-modal').classList.add('active');
 }
 
@@ -828,11 +863,12 @@ function closeEditWorkerModal() {
 async function saveWorkerEdit() {
     const id = document.getElementById('edit-worker-id').value;
     const tier = document.getElementById('edit-worker-tier').value;
+    const depLevel = document.getElementById('edit-worker-dep-level').value;
     try {
         const res = await fetch(API + '/api/v1/admin/workers/' + id, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resource_tier_max: tier })
+            body: JSON.stringify({ resource_tier_max: tier, dep_level_max: depLevel })
         });
         if (!res.ok) {
             const text = await res.text();

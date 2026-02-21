@@ -63,7 +63,8 @@ Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
         "COALESCE(w.distro,'') || '-' || COALESCE(w.compiler,'') AS platform "
         "FROM active_jobs aj "
         "JOIN projects p ON p.id = aj.project_id "
-        "LEFT JOIN workers w ON w.id = aj.worker_id");
+        "LEFT JOIN workers w ON w.id = aj.worker_id "
+        "WHERE aj.reaped_at IS NULL");
 
     for (const auto &row : jobs) {
         cells.push_back({
@@ -81,10 +82,10 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "SELECT w.id, w.name, w.arch, w.os, w.os_version, w.distro, w.cpu_model, "
-        "w.cores, w.ram_mb, w.resource_tier_max::text, w.last_seen::text, "
+        "w.cores, w.ram_mb, w.resource_tier_max::text, w.dep_level_max::text, w.last_seen::text, "
         "p.name AS current_job "
         "FROM workers w "
-        "LEFT JOIN active_jobs aj ON aj.worker_id = w.id "
+        "LEFT JOIN active_jobs aj ON aj.worker_id = w.id AND aj.reaped_at IS NULL "
         "LEFT JOIN projects p ON p.id = aj.project_id "
         "ORDER BY w.last_seen DESC");
 
@@ -101,6 +102,7 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
             .cores = row["cores"].as<int>(),
             .ram_mb = row["ram_mb"].as<int>(),
             .resource_tier_max = row["resource_tier_max"].as<std::string>(),
+            .dep_level_max = row["dep_level_max"].as<std::string>(),
             .last_seen = row["last_seen"].as<std::string>(),
             .current_job = row["current_job"].isNull()
                 ? std::nullopt : std::optional{row["current_job"].as<std::string>()},

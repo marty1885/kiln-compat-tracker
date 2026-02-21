@@ -151,6 +151,23 @@ inline const std::vector<Migration> &migrations() {
             // occurred after this timestamp.
             "ALTER TABLE projects ADD COLUMN forced_rebuild_after TIMESTAMPTZ",
         }},
+        {6, {
+            // Allow the job reaper to mark stale jobs without deleting them,
+            // so a worker that comes back online can still submit its result.
+            "ALTER TABLE active_jobs ADD COLUMN reaped_at TIMESTAMPTZ",
+        }},
+        {7, {
+            // Dependency level enum for matching projects to workers based on
+            // what system dependencies are installed.
+            "CREATE TYPE dep_level AS ENUM ('base', 'moderate', 'full')",
+            "ALTER TABLE projects ADD COLUMN dep_level dep_level NOT NULL DEFAULT 'base'",
+            "ALTER TABLE workers ADD COLUMN dep_level_max dep_level NOT NULL DEFAULT 'base'",
+        }},
+        {8, {
+            // OS filter: restrict which OSes a project can build on.
+            // Empty = any OS (default). Non-empty = comma-separated list.
+            "ALTER TABLE projects ADD COLUMN os_filter TEXT NOT NULL DEFAULT ''",
+        }},
         // Future migrations go here:
     };
     return m;

@@ -14,7 +14,7 @@ Task<HttpResponsePtr> ProjectApi::list(HttpRequestPtr req) {
     auto r = co_await db->execSqlCoro(
         "SELECT id, name, repo_url, branch, pinned_commit, build_command, "
         "run_tests, test_resource_tier_min::text, resource_tier::text, "
-        "cooldown_minutes, enabled "
+        "dep_level::text, os_filter, cooldown_minutes, enabled "
         "FROM projects ORDER BY name");
 
     std::vector<ProjectInfo> projects;
@@ -32,6 +32,8 @@ Task<HttpResponsePtr> ProjectApi::list(HttpRequestPtr req) {
             .test_resource_tier_min = row["test_resource_tier_min"].isNull()
                 ? std::nullopt : std::optional{row["test_resource_tier_min"].as<std::string>()},
             .resource_tier = row["resource_tier"].as<std::string>(),
+            .dep_level = row["dep_level"].as<std::string>(),
+            .os_filter = row["os_filter"].as<std::string>(),
             .cooldown_minutes = row["cooldown_minutes"].as<int>(),
             .enabled = row["enabled"].as<bool>(),
         });
@@ -51,8 +53,8 @@ Task<HttpResponsePtr> ProjectApi::create(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto binder = *db <<
         "INSERT INTO projects (name, repo_url, branch, pinned_commit, build_command, "
-        "run_tests, test_resource_tier_min, resource_tier, cooldown_minutes) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7::resource_tier, $8::resource_tier, $9) "
+        "run_tests, test_resource_tier_min, resource_tier, dep_level, os_filter, cooldown_minutes) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::resource_tier, $8::resource_tier, $9::dep_level, $10, $11) "
         "RETURNING id";
 
     binder << pc.name << pc.repo_url << pc.branch;
@@ -60,7 +62,7 @@ Task<HttpResponsePtr> ProjectApi::create(HttpRequestPtr req) {
     if (pc.build_command) binder << *pc.build_command; else binder << nullptr;
     binder << pc.run_tests;
     if (pc.test_resource_tier_min) binder << *pc.test_resource_tier_min; else binder << nullptr;
-    binder << pc.resource_tier << pc.cooldown_minutes;
+    binder << pc.resource_tier << pc.dep_level << pc.os_filter << pc.cooldown_minutes;
 
     auto r = co_await drogon::orm::internal::SqlAwaiter(std::move(binder));
     co_return json_response(IdResponse{r[0]["id"].as<int64_t>()}, k201Created);
@@ -79,15 +81,15 @@ Task<HttpResponsePtr> ProjectApi::update(HttpRequestPtr req, int64_t id) {
     auto binder = *db <<
         "UPDATE projects SET name=$1, repo_url=$2, branch=$3, pinned_commit=$4, "
         "build_command=$5, run_tests=$6, test_resource_tier_min=$7::resource_tier, "
-        "resource_tier=$8::resource_tier, cooldown_minutes=$9 "
-        "WHERE id=$10";
+        "resource_tier=$8::resource_tier, dep_level=$9::dep_level, os_filter=$10, "
+        "cooldown_minutes=$11 WHERE id=$12";
 
     binder << pc.name << pc.repo_url << pc.branch;
     if (pc.pinned_commit) binder << *pc.pinned_commit; else binder << nullptr;
     if (pc.build_command) binder << *pc.build_command; else binder << nullptr;
     binder << pc.run_tests;
     if (pc.test_resource_tier_min) binder << *pc.test_resource_tier_min; else binder << nullptr;
-    binder << pc.resource_tier << pc.cooldown_minutes << id;
+    binder << pc.resource_tier << pc.dep_level << pc.os_filter << pc.cooldown_minutes << id;
 
     co_await drogon::orm::internal::SqlAwaiter(std::move(binder));
     co_return error_response(k200OK);

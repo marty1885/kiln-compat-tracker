@@ -16,7 +16,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "SELECT w.id, w.name, w.auth_token, w.arch, w.os, w.os_version, w.distro, "
-        "w.resource_tier_max::text, w.last_seen::text, "
+        "w.resource_tier_max::text, w.dep_level_max::text, w.last_seen::text, "
         "p.name AS current_job "
         "FROM workers w "
         "LEFT JOIN active_jobs aj ON aj.worker_id = w.id "
@@ -34,6 +34,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
             .os_version = row["os_version"].as<std::string>(),
             .distro = row["distro"].as<std::string>(),
             .resource_tier_max = row["resource_tier_max"].as<std::string>(),
+            .dep_level_max = row["dep_level_max"].as<std::string>(),
             .last_seen = row["last_seen"].as<std::string>(),
             .current_job = row["current_job"].isNull()
                 ? std::nullopt : std::optional{row["current_job"].as<std::string>()},
@@ -60,13 +61,19 @@ Task<HttpResponsePtr> WorkerMgmtApi::create(HttpRequestPtr req) {
         wc.resource_tier_max != "large")
         co_return error_response(k400BadRequest, "Invalid resource tier");
 
+    if (wc.dep_level_max != "base" &&
+        wc.dep_level_max != "moderate" &&
+        wc.dep_level_max != "full")
+        co_return error_response(k400BadRequest, "Invalid dep level");
+
     auto token = generate_token();
     auto db = app().getDbClient();
 
     try {
         auto r = co_await db->execSqlCoro(
-            "INSERT INTO workers (name, auth_token, resource_tier_max) "
-            "VALUES ($1, $2, '" + wc.resource_tier_max + "'::resource_tier) "
+            "INSERT INTO workers (name, auth_token, resource_tier_max, dep_level_max) "
+            "VALUES ($1, $2, '" + wc.resource_tier_max + "'::resource_tier, "
+            "'" + wc.dep_level_max + "'::dep_level) "
             "RETURNING id",
             wc.name, token);
 
@@ -95,9 +102,15 @@ Task<HttpResponsePtr> WorkerMgmtApi::update(HttpRequestPtr req, int64_t id) {
         wu.resource_tier_max != "large")
         co_return error_response(k400BadRequest, "Invalid resource tier");
 
+    if (wu.dep_level_max != "base" &&
+        wu.dep_level_max != "moderate" &&
+        wu.dep_level_max != "full")
+        co_return error_response(k400BadRequest, "Invalid dep level");
+
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
-        "UPDATE workers SET resource_tier_max = '" + wu.resource_tier_max + "'::resource_tier "
+        "UPDATE workers SET resource_tier_max = '" + wu.resource_tier_max + "'::resource_tier, "
+        "dep_level_max = '" + wu.dep_level_max + "'::dep_level "
         "WHERE id = $1 RETURNING id", id);
 
     if (r.empty())

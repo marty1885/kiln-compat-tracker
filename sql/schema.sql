@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Migration 1: initial schema (ids widened to BIGINT in migration 2)
 CREATE TYPE resource_tier AS ENUM ('small', 'medium', 'large');
+CREATE TYPE dep_level AS ENUM ('base', 'moderate', 'full');
 CREATE TYPE build_status AS ENUM ('pass', 'fail', 'timeout', 'error');
 
 CREATE TABLE kiln_commits (
@@ -28,6 +29,8 @@ CREATE TABLE projects (
     run_tests BOOLEAN NOT NULL DEFAULT false,
     test_resource_tier_min resource_tier,
     resource_tier resource_tier NOT NULL DEFAULT 'small',
+    dep_level dep_level NOT NULL DEFAULT 'base',
+    os_filter TEXT NOT NULL DEFAULT '',
     cooldown_minutes INT NOT NULL DEFAULT 30,
     enabled BOOLEAN NOT NULL DEFAULT true,
     -- Migration 5: set by trigger, suppresses cooldown for builds before this time
@@ -45,6 +48,7 @@ CREATE TABLE workers (
     cores INT NOT NULL DEFAULT 0,
     ram_mb INT NOT NULL DEFAULT 0,
     resource_tier_max resource_tier NOT NULL DEFAULT 'small',
+    dep_level_max dep_level NOT NULL DEFAULT 'base',
     last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- Migration 4: distro and compiler for per-platform scheduling
     distro TEXT NOT NULL DEFAULT '',
@@ -81,7 +85,9 @@ CREATE TABLE active_jobs (
     kiln_commit_id BIGINT REFERENCES kiln_commits(id),
     worker_id BIGINT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
     assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Migration 6: set by reaper when heartbeat is stale; scheduler ignores reaped rows
+    reaped_at TIMESTAMPTZ
 );
 
 CREATE TABLE config (

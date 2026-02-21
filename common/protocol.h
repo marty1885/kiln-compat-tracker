@@ -20,6 +20,7 @@ struct HeartbeatRequest {
     int cores{};
     int ram_mb{};
     std::string resource_tier_max;
+    std::string dep_level_max;
     std::string compiler;
     std::string compiler_version;
 };
@@ -68,6 +69,8 @@ struct ProjectInfo {
     bool run_tests{};
     std::optional<std::string> test_resource_tier_min;
     std::string resource_tier;
+    std::string dep_level;
+    std::string os_filter;
     int cooldown_minutes{};
     bool enabled{};
 };
@@ -81,6 +84,8 @@ struct ProjectCreateRequest {
     bool run_tests{};
     std::optional<std::string> test_resource_tier_min;
     std::string resource_tier{"small"};
+    std::string dep_level{"base"};
+    std::string os_filter;
     int cooldown_minutes{30};
 };
 
@@ -105,6 +110,7 @@ struct WorkerInfo {
     int cores{};
     int ram_mb{};
     std::string resource_tier_max;
+    std::string dep_level_max;
     std::string last_seen;
     std::optional<std::string> current_job;
 };
@@ -178,10 +184,12 @@ struct KilnHashInfo {
 struct WorkerCreateRequest {
     std::string name;
     std::string resource_tier_max{"small"};
+    std::string dep_level_max{"base"};
 };
 
 struct WorkerUpdateRequest {
     std::string resource_tier_max;
+    std::string dep_level_max;
 };
 
 struct WorkerCreateResponse {
@@ -198,6 +206,7 @@ struct WorkerAdminInfo {
     std::string os_version;
     std::string distro;
     std::string resource_tier_max;
+    std::string dep_level_max;
     std::string last_seen;
     std::optional<std::string> current_job;
 };

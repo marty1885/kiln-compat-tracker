@@ -41,6 +41,11 @@ worker_name: my-builder-01
 # Valid values: small, medium, large  (default: small)
 resource_tier_max: small
 
+# Maximum dependency level this worker can handle.
+# Projects are scheduled only to workers that meet or exceed their dep level.
+# Valid values: base, moderate, full  (default: base)
+dep_level_max: base
+
 # Root directory for the worker's persistent cache.
 # Kiln source is kept at {workspace_dir}/kiln/
 # Project repos are kept at {workspace_dir}/projects/
