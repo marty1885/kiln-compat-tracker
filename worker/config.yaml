@@ -1,0 +1,6 @@
+server_url: http://localhost:8080
+auth_token: test-worker-token-1
+worker_name: dev-local
+resource_tier_max: small
+workspace_dir: /tmp/kiln-ci
+poll_interval_seconds: 30

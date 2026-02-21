@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiln Compat Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0d1117; color: #c9d1d9; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+nav { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 24px; display: flex; align-items: center; gap: 24px; }
+nav h1 { font-size: 18px; color: #f0f6fc; }
+nav button { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+nav button:hover { background: #30363d; }
+nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.nav-spacer { flex: 1; }
+.nav-user { font-size: 13px; color: #8b949e; display: flex; align-items: center; gap: 10px; }
+.nav-user strong { color: #f0f6fc; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Matrix */
+.matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.matrix-table th, .matrix-table td { border: 1px solid #30363d; padding: 8px 10px; text-align: center; }
+.matrix-table th { background: #161b22; color: #8b949e; font-weight: 600; position: sticky; top: 0; }
+.matrix-table td.project-name { text-align: left; font-weight: 600; color: #f0f6fc; white-space: nowrap; }
+.cell-pass { background: #1a3a2a; color: #3fb950; }
+.cell-fail { background: #3d1a1a; color: #f85149; }
+.cell-both-fail { background: #2a2019; color: #d29922; }
+.cell-building { background: #1a2a3d; color: #58a6ff; }
+.cell-empty { color: #484f58; }
+.cell-stale { opacity: 0.5; }
+.cell-pass:hover, .cell-fail:hover, .cell-both-fail:hover, .cell-building:hover { opacity: 0.8; cursor: pointer; }
+
+/* Workers */
+.worker-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.worker-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.worker-card h3 { color: #f0f6fc; margin-bottom: 8px; font-size: 15px; }
+.worker-card .detail { color: #8b949e; font-size: 13px; margin: 4px 0; }
+.worker-card .online { color: #3fb950; }
+.worker-card .offline { color: #f85149; }
+.worker-card .job-badge { background: #1f6feb; color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 12px; }
+
+/* Projects */
+.project-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+.project-list th, .project-list td { border: 1px solid #30363d; padding: 8px 12px; text-align: left; }
+.project-list th { background: #161b22; color: #8b949e; }
+.project-list tr:hover { background: #161b22; }
+
+.btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #30363d; cursor: pointer; font-size: 12px; margin: 0 2px; }
+.btn-primary { background: #238636; border-color: #238636; color: #fff; }
+.btn-danger { background: #da3633; border-color: #da3633; color: #fff; }
+.btn-warn { background: #9e6a03; border-color: #9e6a03; color: #fff; }
+.btn:hover { opacity: 0.85; }
+.enabled-badge { color: #3fb950; }
+.disabled-badge { color: #f85149; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; }
+.modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+.modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; width: 500px; max-width: 90vw; }
+.modal h2 { color: #f0f6fc; margin-bottom: 16px; font-size: 18px; }
+.modal label { display: block; color: #8b949e; font-size: 13px; margin-top: 10px; }
+.modal input, .modal select { width: 100%; padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 14px; margin-top: 4px; }
+.modal input[type="checkbox"] { width: auto; margin-right: 8px; }
+.modal .modal-actions { margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end; }
+.modal .error-msg { color: #f85149; font-size: 13px; margin-top: 8px; }
+
+/* History */
+.history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.history-table th, .history-table td { border: 1px solid #30363d; padding: 6px 10px; text-align: left; }
+.history-table th { background: #161b22; color: #8b949e; }
+.status-pass { color: #3fb950; font-weight: 600; }
+.status-fail { color: #f85149; font-weight: 600; }
+.status-both-fail { color: #d29922; font-weight: 600; }
+
+.legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-header h2 { color: #f0f6fc; font-size: 20px; }
+
+.hide-both-fail-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; }
+
+/* Admin workers table */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th, .admin-table td { border: 1px solid #30363d; padding: 8px 12px; text-align: left; }
+.admin-table th { background: #161b22; color: #8b949e; }
+.admin-table tr:hover { background: #161b22; }
+.token-cell { font-family: monospace; font-size: 12px; }
+.token-masked { color: #484f58; }
+.invite-url-box { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 10px; margin-top: 12px; font-family: monospace; font-size: 13px; word-break: break-all; }
+.token-display { background: #0d1117; border: 1px solid #238636; border-radius: 4px; padding: 12px; margin-top: 12px; }
+.token-display code { font-size: 14px; color: #3fb950; word-break: break-all; }
+.token-display .warning { color: #d29922; font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<nav>
+    <h1>Kiln Compat Tracker</h1>
+    <button class="active" onclick="showTab('matrix')">Matrix</button>
+    <button onclick="showTab('projects')">Projects</button>
+    <button onclick="showTab('workers')">Workers</button>
+    <button onclick="showTab('trend')">Trend</button>
+    <button id="admin-tab-btn" onclick="showTab('admin')" style="display:none">Admin</button>
+    <div class="nav-spacer"></div>
+    <div class="nav-user" id="nav-user">
+        <button class="btn" id="login-btn" onclick="openAuthModal('login')" style="display:none">Login</button>
+    </div>
+</nav>
+
+<div class="container">
+    <!-- Matrix Tab -->
+    <div id="tab-matrix" class="tab-content active">
+        <div class="section-header">
+            <h2>Compatibility Matrix</h2>
+            <label class="hide-both-fail-toggle">
+                <input type="checkbox" id="hideBothFail" onchange="renderMatrix()">
+                Hide "both fail" results
+            </label>
+        </div>
+        <div class="legend">
+            <span><span class="legend-dot" style="background:#3fb950"></span> Pass</span>
+            <span><span class="legend-dot" style="background:#f85149"></span> Kiln bug (cmake passes)</span>
+            <span><span class="legend-dot" style="background:#d29922"></span> Both fail</span>
+            <span><span class="legend-dot" style="background:#58a6ff"></span> Building</span>
+        </div>
+        <div id="matrix-container">Loading...</div>
+    </div>
+
+    <!-- Projects Tab -->
+    <div id="tab-projects" class="tab-content">
+        <div class="section-header">
+            <h2>Projects</h2>
+            <button class="btn btn-primary admin-only" onclick="openAddProject()" style="display:none">+ Add Project</button>
+        </div>
+        <div id="projects-container">Loading...</div>
+    </div>
+
+    <!-- Workers Tab -->
+    <div id="tab-workers" class="tab-content">
+        <div class="section-header">
+            <h2>Workers</h2>
+        </div>
+        <div id="workers-container">Loading...</div>
+    </div>
+
+    <!-- Trend Tab -->
+    <div id="tab-trend" class="tab-content">
+        <div class="section-header">
+            <h2>Passing Projects Over Time</h2>
+            <select id="trend-days" onchange="loadTrend()" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:4px 8px;border-radius:4px">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+            </select>
+        </div>
+        <div style="position:relative;height:400px;margin-top:16px">
+            <canvas id="trend-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Admin Tab -->
+    <div id="tab-admin" class="tab-content">
+        <div class="section-header">
+            <h2>Admin</h2>
+        </div>
+        <h3 style="color:#f0f6fc;margin-bottom:12px">Workers</h3>
+        <div style="margin-bottom:12px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="openAddWorker()">+ Add Worker</button>
+            <button class="btn" onclick="generateInvite()">Generate Invite Link</button>
+        </div>
+        <div id="invite-result"></div>
+        <div id="admin-workers-container">Loading...</div>
+    </div>
+
+    <!-- Project History (shown inline) -->
+    <div id="tab-history" class="tab-content">
+        <div class="section-header">
+            <h2 id="history-title">Build History</h2>
+            <button class="btn" onclick="showTab('matrix')">Back to Matrix</button>
+        </div>
+        <div id="history-container">Loading...</div>
+    </div>
+</div>
+
+<!-- Auth Modal (login/register) -->
+<div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+        <h2 id="auth-modal-title">Login</h2>
+        <form id="auth-form" action="/api/v1/auth/login" method="POST" onsubmit="return submitAuth(event)">
+            <div id="auth-error" class="error-msg"></div>
+            <label>Username <input type="text" id="auth-username" name="username" autocomplete="username"></label>
+            <label>Password <input type="password" id="auth-password" name="password" autocomplete="current-password"></label>
+            <input type="hidden" id="auth-invite-token" name="invite_token">
+            <div class="modal-actions">
+                <button type="button" class="btn" onclick="closeAuthModal()" id="auth-cancel-btn">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="auth-submit-btn">Login</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add/Edit Project Modal -->
+<div class="modal-overlay" id="project-modal">
+    <div class="modal">
+        <h2 id="modal-title">Add Project</h2>
+        <input type="hidden" id="edit-project-id">
+        <label>Name <input type="text" id="proj-name" placeholder="e.g. sfml"></label>
+        <label>Git Repo URL <input type="text" id="proj-url" placeholder="https://github.com/..."></label>
+        <label>Branch <input type="text" id="proj-branch" value="HEAD"></label>
+        <label>Pinned Commit (optional) <input type="text" id="proj-pinned"></label>
+        <label>Build Command Override (optional) <input type="text" id="proj-build-cmd"></label>
+        <label>Resource Tier
+            <select id="proj-tier">
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+            </select>
+        </label>
+        <label>Cooldown (minutes) <input type="number" id="proj-cooldown" value="30"></label>
+        <label><input type="checkbox" id="proj-tests"> Run Tests</label>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveProject()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Worker Modal -->
+<div class="modal-overlay" id="worker-modal">
+    <div class="modal">
+        <h2>Add Worker</h2>
+        <div id="worker-error" class="error-msg"></div>
+        <label>Name <input type="text" id="worker-name" placeholder="e.g. builder-01"></label>
+        <label>Max Resource Tier
+            <select id="worker-tier">
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+            </select>
+        </label>
+        <div id="worker-token-result"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeWorkerModal()">Cancel</button>
+            <button class="btn btn-primary" id="worker-save-btn" onclick="saveWorker()">Create</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = '';
+let authState = { logged_in: false, username: '', needs_setup: false };
+
+// --- Auth ---
+async function checkAuth() {
+    try {
+        authState = await fetchJson(API + '/api/v1/auth/status');
+    } catch(e) {
+        authState = { logged_in: false, username: '', needs_setup: false };
+    }
+    updateAuthUI();
+}
+
+function updateAuthUI() {
+    const navUser = document.getElementById('nav-user');
+    const loginBtn = document.getElementById('login-btn');
+    const adminTabBtn = document.getElementById('admin-tab-btn');
+
+    if (authState.logged_in) {
+        loginBtn.style.display = 'none';
+        adminTabBtn.style.display = '';
+        navUser.innerHTML = '<strong>' + escHtml(authState.username) + '</strong>' +
+            '<button class="btn" onclick="doLogout()">Logout</button>';
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    } else {
+        loginBtn.style.display = '';
+        adminTabBtn.style.display = 'none';
+        navUser.innerHTML = '<button class="btn" id="login-btn" onclick="openAuthModal(\'login\')">Login</button>';
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    }
+}
+
+function openAuthModal(mode) {
+    document.getElementById('auth-error').textContent = '';
+    document.getElementById('auth-username').value = '';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-invite-token').value = '';
+
+    const form = document.getElementById('auth-form');
+    const pwField = document.getElementById('auth-password');
+    if (mode === 'setup') {
+        document.getElementById('auth-modal-title').textContent = 'Create Admin Account';
+        document.getElementById('auth-submit-btn').textContent = 'Create Account';
+        document.getElementById('auth-cancel-btn').style.display = 'none';
+        form.action = '/api/v1/auth/register';
+        pwField.autocomplete = 'new-password';
+    } else if (mode === 'invite') {
+        document.getElementById('auth-modal-title').textContent = 'Register (Invited)';
+        document.getElementById('auth-submit-btn').textContent = 'Register';
+        document.getElementById('auth-cancel-btn').style.display = '';
+        form.action = '/api/v1/auth/register';
+        pwField.autocomplete = 'new-password';
+        const params = new URLSearchParams(window.location.search);
+        document.getElementById('auth-invite-token').value = params.get('invite') || '';
+    } else {
+        document.getElementById('auth-modal-title').textContent = 'Login';
+        document.getElementById('auth-submit-btn').textContent = 'Login';
+        document.getElementById('auth-cancel-btn').style.display = '';
+        form.action = '/api/v1/auth/login';
+        pwField.autocomplete = 'current-password';
+    }
+    document.getElementById('auth-modal').classList.add('active');
+    document.getElementById('auth-username').focus();
+}
+
+function closeAuthModal() {
+    document.getElementById('auth-modal').classList.remove('active');
+}
+
+async function submitAuth(e) {
+    if (e) e.preventDefault();
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const inviteToken = document.getElementById('auth-invite-token').value;
+    const title = document.getElementById('auth-modal-title').textContent;
+
+    if (!username || !password) {
+        document.getElementById('auth-error').textContent = 'Username and password required';
+        return;
+    }
+
+    const isRegister = title !== 'Login';
+
+    try {
+        const url = isRegister ? API + '/api/v1/auth/register' : API + '/api/v1/auth/login';
+        const body = isRegister
+            ? { username, password, ...(inviteToken ? { invite_token: inviteToken } : {}) }
+            : { username, password };
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            document.getElementById('auth-error').textContent = text || 'Request failed';
+            return;
+        }
+
+        const result = JSON.parse(await res.text());
+        authState = result;
+        closeAuthModal();
+        updateAuthUI();
+        // Clear invite param from URL
+        if (inviteToken) {
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    } catch(e) {
+        document.getElementById('auth-error').textContent = e.message;
+    }
+}
+
+async function doLogout() {
+    await fetch(API + '/api/v1/auth/logout', { method: 'POST' });
+    window.location.reload();
+}
+
+// --- Tab switching ---
+function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.querySelectorAll('nav button').forEach(b => {
+        if (b.textContent.toLowerCase().includes(name)) b.classList.add('active');
+    });
+    if (name === 'matrix') loadMatrix();
+    if (name === 'projects') loadProjects();
+    if (name === 'workers') loadWorkers();
+    if (name === 'trend') loadTrend();
+    if (name === 'admin') loadAdminWorkers();
+}
+
+// --- Matrix ---
+let matrixData = [];
+async function fetchJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+}
+
+async function loadMatrix() {
+    try {
+        matrixData = await fetchJson(API + '/api/v1/dashboard/matrix');
+        renderMatrix();
+    } catch(e) {
+        document.getElementById('matrix-container').innerHTML = '<p>Error loading matrix: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+function renderMatrix() {
+    const hideBothFail = document.getElementById('hideBothFail').checked;
+    if (!matrixData.length) {
+        document.getElementById('matrix-container').innerHTML = '<p style="color:#8b949e">No build data yet. Add projects and connect workers to start.</p>';
+        return;
+    }
+
+    const projects = {};
+    const platforms = new Set();
+    for (const c of matrixData) {
+        if (!projects[c.project_name]) projects[c.project_name] = { id: c.project_id, cells: {} };
+        platforms.add(c.platform);
+        projects[c.project_name].cells[c.platform] = c;
+    }
+
+    const sortedPlatforms = [...platforms].sort();
+    const sortedProjects = Object.keys(projects).sort();
+
+    let html = '<table class="matrix-table"><thead><tr><th>Project</th>';
+    for (const p of sortedPlatforms) html += '<th>' + escHtml(p) + '</th>';
+    html += '</tr></thead><tbody>';
+
+    for (const proj of sortedProjects) {
+        html += '<tr><td class="project-name"><a href="#" onclick="showHistory(' + projects[proj].id + ',\'' + escHtml(proj) + '\');return false">' + escHtml(proj) + '</a></td>';
+        for (const plat of sortedPlatforms) {
+            const cell = projects[proj].cells[plat];
+            if (!cell) {
+                html += '<td class="cell-empty">-</td>';
+            } else if (cell.status === 'building') {
+                html += '<td class="cell-building">building</td>';
+            } else if (cell.status === 'both_fail' && hideBothFail) {
+                html += '<td class="cell-empty">-</td>';
+            } else {
+                const cls = 'cell-' + cell.status.replace('_', '-');
+                const stale = cell.finished_at && isStale(cell.finished_at) ? ' cell-stale' : '';
+                const label = cell.status === 'pass' ? timeAgo(cell.finished_at) :
+                              cell.status === 'fail' ? 'kiln bug' : 'both fail';
+                html += '<td class="' + cls + stale + '" onclick="showHistory(' + cell.project_id + ',\'' + escHtml(proj) + '\')">' + label + '</td>';
+            }
+        }
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('matrix-container').innerHTML = html;
+}
+
+function isStale(dateStr) {
+    if (!dateStr) return false;
+    return (Date.now() - new Date(dateStr).getTime()) > 24 * 60 * 60 * 1000;
+}
+
+function timeAgo(dateStr) {
+    if (!dateStr) return '?';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.floor(hrs / 24) + 'd ago';
+}
+
+// --- Projects ---
+async function loadProjects() {
+    try {
+        const projects = await fetchJson(API + '/api/v1/projects');
+        if (!projects.length) {
+            document.getElementById('projects-container').innerHTML = '<p style="color:#8b949e">No projects yet.</p>';
+            return;
+        }
+        let html = '<table class="project-list"><thead><tr><th>Name</th><th>Repo</th><th>Branch</th><th>Tier</th><th>Cooldown</th><th>Tests</th><th>Status</th>';
+        if (authState.logged_in) html += '<th>Actions</th>';
+        html += '</tr></thead><tbody>';
+        for (const p of projects) {
+            html += '<tr>';
+            html += '<td>' + escHtml(p.name) + '</td>';
+            html += '<td><a href="' + escHtml(p.repo_url) + '" target="_blank">' + escHtml(p.repo_url).substring(0, 40) + '...</a></td>';
+            html += '<td>' + escHtml(p.branch) + '</td>';
+            html += '<td>' + escHtml(p.resource_tier) + '</td>';
+            html += '<td>' + p.cooldown_minutes + 'm</td>';
+            html += '<td>' + (p.run_tests ? 'Yes' : 'No') + '</td>';
+            html += '<td>' + (p.enabled ? '<span class="enabled-badge">enabled</span>' : '<span class="disabled-badge">disabled</span>') + '</td>';
+            if (authState.logged_in) {
+                html += '<td>';
+                html += '<button class="btn" onclick="editProject(' + p.id + ')">Edit</button>';
+                html += '<button class="btn btn-warn" onclick="toggleProject(' + p.id + ')">' + (p.enabled ? 'Disable' : 'Enable') + '</button>';
+                html += '<button class="btn" onclick="triggerProject(' + p.id + ')">Trigger</button>';
+                html += '<button class="btn btn-danger" onclick="deleteProject(' + p.id + ',\'' + escHtml(p.name) + '\')">Delete</button>';
+                html += '</td>';
+            }
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('projects-container').innerHTML = html;
+    } catch(e) {
+        document.getElementById('projects-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+function openAddProject() {
+    document.getElementById('modal-title').textContent = 'Add Project';
+    document.getElementById('edit-project-id').value = '';
+    document.getElementById('proj-name').value = '';
+    document.getElementById('proj-url').value = '';
+    document.getElementById('proj-branch').value = 'HEAD';
+    document.getElementById('proj-pinned').value = '';
+    document.getElementById('proj-build-cmd').value = '';
+    document.getElementById('proj-tier').value = 'small';
+    document.getElementById('proj-cooldown').value = '30';
+    document.getElementById('proj-tests').checked = false;
+    document.getElementById('project-modal').classList.add('active');
+}
+
+async function editProject(id) {
+    const projects = await fetchJson(API + '/api/v1/projects');
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('modal-title').textContent = 'Edit Project';
+    document.getElementById('edit-project-id').value = id;
+    document.getElementById('proj-name').value = p.name;
+    document.getElementById('proj-url').value = p.repo_url;
+    document.getElementById('proj-branch').value = p.branch;
+    document.getElementById('proj-pinned').value = p.pinned_commit || '';
+    document.getElementById('proj-build-cmd').value = p.build_command || '';
+    document.getElementById('proj-tier').value = p.resource_tier;
+    document.getElementById('proj-cooldown').value = p.cooldown_minutes;
+    document.getElementById('proj-tests').checked = p.run_tests;
+    document.getElementById('project-modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('project-modal').classList.remove('active');
+}
+
+async function saveProject() {
+    const id = document.getElementById('edit-project-id').value;
+    const data = {
+        name: document.getElementById('proj-name').value,
+        repo_url: document.getElementById('proj-url').value,
+        branch: document.getElementById('proj-branch').value || 'HEAD',
+        resource_tier: document.getElementById('proj-tier').value,
+        cooldown_minutes: parseInt(document.getElementById('proj-cooldown').value) || 30,
+        run_tests: document.getElementById('proj-tests').checked
+    };
+    const pinned = document.getElementById('proj-pinned').value;
+    if (pinned) data.pinned_commit = pinned;
+    const buildCmd = document.getElementById('proj-build-cmd').value;
+    if (buildCmd) data.build_command = buildCmd;
+
+    const url = id ? API + '/api/v1/projects/' + id : API + '/api/v1/projects';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+    closeModal();
+    loadProjects();
+}
+
+async function toggleProject(id) {
+    await fetch(API + '/api/v1/projects/' + id + '/enable', { method: 'PATCH' });
+    loadProjects();
+}
+
+async function triggerProject(id) {
+    await fetch(API + '/api/v1/projects/' + id + '/trigger', { method: 'POST' });
+    loadProjects();
+}
+
+async function deleteProject(id, name) {
+    if (!confirm('Delete project "' + name + '"? This removes all build history.')) return;
+    await fetch(API + '/api/v1/projects/' + id, { method: 'DELETE' });
+    loadProjects();
+}
+
+// --- Workers (public view) ---
+async function loadWorkers() {
+    try {
+        const workers = await fetchJson(API + '/api/v1/dashboard/workers');
+        if (!workers.length) {
+            document.getElementById('workers-container').innerHTML = '<p style="color:#8b949e">No workers registered yet.</p>';
+            return;
+        }
+        let html = '<div class="worker-cards">';
+        for (const w of workers) {
+            const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
+            html += '<div class="worker-card">';
+            html += '<h3>' + escHtml(w.name) + ' <span class="' + (online ? 'online' : 'offline') + '">(' + (online ? 'online' : 'offline') + ')</span></h3>';
+            html += '<div class="detail">' + escHtml(w.arch) + ' / ' + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
+            html += '<div class="detail">' + escHtml(w.cpu_model) + ' &middot; ' + w.cores + ' cores &middot; ' + w.ram_mb + ' MB</div>';
+            html += '<div class="detail">Tier: ' + escHtml(w.resource_tier_max) + ' &middot; Last seen: ' + timeAgo(w.last_seen) + '</div>';
+            if (w.current_job) html += '<div class="detail">Building: <span class="job-badge">' + escHtml(w.current_job) + '</span></div>';
+            html += '</div>';
+        }
+        html += '</div>';
+        document.getElementById('workers-container').innerHTML = html;
+    } catch(e) {
+        document.getElementById('workers-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+// --- Admin: Worker Management ---
+let revealedTokens = {};
+
+async function loadAdminWorkers() {
+    try {
+        const workers = await fetchJson(API + '/api/v1/admin/workers');
+        if (!workers.length) {
+            document.getElementById('admin-workers-container').innerHTML = '<p style="color:#8b949e">No workers yet. Add one above.</p>';
+            return;
+        }
+        let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Arch/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
+        for (const w of workers) {
+            const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
+            const tokenId = 'token-' + w.id;
+            html += '<tr>';
+            html += '<td>' + escHtml(w.name) + '</td>';
+            html += '<td>' + escHtml(w.resource_tier_max) + '</td>';
+            html += '<td>' + escHtml(w.arch || '-') + ' / ' + escHtml(w.os || '-') + ' ' + escHtml(w.os_version || '') + '</td>';
+            html += '<td>' + timeAgo(w.last_seen) + '</td>';
+            html += '<td>' + (w.current_job ? '<span class="job-badge">' + escHtml(w.current_job) + '</span>' : (online ? '<span class="enabled-badge">online</span>' : '<span class="disabled-badge">offline</span>')) + '</td>';
+            html += '<td class="token-cell">';
+            if (revealedTokens[w.id]) {
+                html += '<code>' + escHtml(w.auth_token) + '</code> ';
+                html += '<button class="btn" onclick="hideToken(' + w.id + ')">Hide</button>';
+            } else {
+                html += '<span class="token-masked">' + w.auth_token.substring(0, 6) + '...</span> ';
+                html += '<button class="btn" onclick="revealToken(' + w.id + ')">Show</button>';
+            }
+            html += '</td>';
+            html += '<td><button class="btn btn-danger" onclick="deleteWorker(' + w.id + ',\'' + escHtml(w.name) + '\')">Delete</button></td>';
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('admin-workers-container').innerHTML = html;
+    } catch(e) {
+        document.getElementById('admin-workers-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+function revealToken(id) {
+    revealedTokens[id] = true;
+    loadAdminWorkers();
+}
+
+function hideToken(id) {
+    delete revealedTokens[id];
+    loadAdminWorkers();
+}
+
+function openAddWorker() {
+    document.getElementById('worker-error').textContent = '';
+    document.getElementById('worker-name').value = '';
+    document.getElementById('worker-tier').value = 'small';
+    document.getElementById('worker-token-result').innerHTML = '';
+    document.getElementById('worker-save-btn').style.display = '';
+    document.getElementById('worker-modal').classList.add('active');
+    document.getElementById('worker-name').focus();
+}
+
+function closeWorkerModal() {
+    document.getElementById('worker-modal').classList.remove('active');
+    // Reload admin workers in case one was created
+    if (document.getElementById('tab-admin').classList.contains('active')) {
+        loadAdminWorkers();
+    }
+}
+
+async function saveWorker() {
+    const name = document.getElementById('worker-name').value.trim();
+    const tier = document.getElementById('worker-tier').value;
+
+    if (!name) {
+        document.getElementById('worker-error').textContent = 'Worker name required';
+        return;
+    }
+
+    try {
+        const res = await fetch(API + '/api/v1/admin/workers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, resource_tier_max: tier })
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            document.getElementById('worker-error').textContent = text || 'Failed to create worker';
+            return;
+        }
+
+        const result = JSON.parse(await res.text());
+        document.getElementById('worker-error').textContent = '';
+        document.getElementById('worker-save-btn').style.display = 'none';
+        document.getElementById('worker-token-result').innerHTML =
+            '<div class="token-display">' +
+            '<div style="color:#f0f6fc;font-weight:600;margin-bottom:6px">Worker created! Auth token:</div>' +
+            '<code>' + escHtml(result.auth_token) + '</code>' +
+            '<div style="margin-top:8px"><button class="btn" onclick="copyToken(\'' + escHtml(result.auth_token) + '\')">Copy Token</button></div>' +
+            '<div class="warning">Save this token now — it won\'t be shown again.</div>' +
+            '</div>';
+    } catch(e) {
+        document.getElementById('worker-error').textContent = e.message;
+    }
+}
+
+function copyToken(token) {
+    navigator.clipboard.writeText(token);
+}
+
+async function deleteWorker(id, name) {
+    if (!confirm('Delete worker "' + name + '"? Active jobs will be removed. Build history will be preserved with "(deleted)" as the worker name.')) return;
+    await fetch(API + '/api/v1/admin/workers/' + id, { method: 'DELETE' });
+    loadAdminWorkers();
+}
+
+async function generateInvite() {
+    try {
+        const res = await fetch(API + '/api/v1/auth/invite', { method: 'POST' });
+        if (!res.ok) {
+            document.getElementById('invite-result').innerHTML = '<p class="error-msg">Failed to generate invite</p>';
+            return;
+        }
+        const result = JSON.parse(await res.text());
+        document.getElementById('invite-result').innerHTML =
+            '<div class="invite-url-box">' +
+            '<div style="color:#f0f6fc;font-weight:600;margin-bottom:4px">Invite Link:</div>' +
+            '<a href="' + escHtml(result.url) + '">' + escHtml(result.url) + '</a>' +
+            '<div style="margin-top:6px"><button class="btn" onclick="navigator.clipboard.writeText(\'' + escHtml(result.url) + '\')">Copy</button></div>' +
+            '</div>';
+    } catch(e) {
+        document.getElementById('invite-result').innerHTML = '<p class="error-msg">' + escHtml(e.message) + '</p>';
+    }
+}
+
+// --- History ---
+async function showHistory(projectId, name) {
+    document.getElementById('history-title').textContent = 'Build History: ' + name;
+    showTab('history');
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    try {
+        const results = await fetchJson(API + '/api/v1/dashboard/project/' + projectId + '/history');
+        if (!results.length) {
+            document.getElementById('history-container').innerHTML = '<p style="color:#8b949e">No builds yet.</p>';
+            return;
+        }
+        let html = '<table class="history-table"><thead><tr><th>Kiln Hash</th><th>Project Commit</th><th>Worker</th><th>Compiler</th><th>Status</th><th>CMake Fallback</th><th>Duration</th><th>Finished</th></tr></thead><tbody>';
+        for (const b of results) {
+            const statusCls = b.status === 'pass' ? 'status-pass' :
+                              (b.cmake_fallback_status === 'pass' ? 'status-fail' : 'status-both-fail');
+            const statusLabel = b.status === 'pass' ? 'pass' :
+                                (b.cmake_fallback_status === 'pass' ? 'KILN BUG' :
+                                 (b.cmake_fallback_status ? 'both fail' : b.status));
+            html += '<tr>';
+            html += '<td><code>' + escHtml(b.kiln_hash.substring(0, 8)) + '</code></td>';
+            html += '<td><code>' + escHtml(b.project_commit.substring(0, 8)) + '</code></td>';
+            html += '<td>' + escHtml(b.worker_name) + '</td>';
+            html += '<td>' + escHtml(b.compiler) + ' ' + escHtml(b.compiler_version) + '</td>';
+            html += '<td class="' + statusCls + '">' + statusLabel + '</td>';
+            html += '<td>' + (b.cmake_fallback_status || '-') + (b.cmake_duration_seconds ? ' (' + b.cmake_duration_seconds + 's)' : '') + '</td>';
+            html += '<td>' + b.duration_seconds + 's</td>';
+            html += '<td>' + timeAgo(b.finished_at) + '</td>';
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('history-container').innerHTML = html;
+    } catch(e) {
+        document.getElementById('history-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// --- Trend chart ---
+let trendChart = null;
+async function loadTrend() {
+    const days = document.getElementById('trend-days').value;
+    try {
+        const data = await fetchJson(API + '/api/v1/dashboard/trend?days=' + days);
+        const labels = data.map(d => d.date);
+        const passing = data.map(d => d.passing);
+        const kilnBugs = data.map(d => d.kiln_bugs);
+        const total = data.map(d => d.total_projects);
+
+        if (trendChart) trendChart.destroy();
+
+        const ctx = document.getElementById('trend-chart').getContext('2d');
+        trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Passing projects',
+                        data: passing,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63,185,80,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                    },
+                    {
+                        label: 'Kiln bugs',
+                        data: kilnBugs,
+                        borderColor: '#f85149',
+                        backgroundColor: 'rgba(248,81,73,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                    },
+                    {
+                        label: 'Total tracked',
+                        data: total,
+                        borderColor: '#8b949e',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        ticks: { color: '#8b949e', maxTicksLimit: 15 },
+                        grid: { color: '#21262d' },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#8b949e', stepSize: 1 },
+                        grid: { color: '#21262d' },
+                    },
+                },
+                plugins: {
+                    legend: { labels: { color: '#c9d1d9' } },
+                },
+            },
+        });
+    } catch(e) {
+        document.getElementById('trend-chart').parentElement.innerHTML =
+            '<p>Error loading trend: ' + escHtml(e.message) + '</p>';
+    }
+}
+
+// --- Initial load ---
+async function init() {
+    await checkAuth();
+
+    // Check for invite token in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('invite') && !authState.logged_in) {
+        openAuthModal('invite');
+    } else if (authState.needs_setup) {
+        openAuthModal('setup');
+    }
+
+    loadMatrix();
+}
+
+init();
+</script>
+</body>
+</html>
