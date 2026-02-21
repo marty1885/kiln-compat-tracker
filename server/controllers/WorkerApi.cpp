@@ -43,8 +43,12 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
         hb.arch, hb.os, hb.os_version, hb.distro, hb.cpu_model,
         hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, token);
 
-    if (r.empty())
-        co_return error_response(k401Unauthorized, "Unknown auth token");
+    if (r.empty()) {
+        LOG_WARN << "Heartbeat: unknown token (len=" << token.size()
+                 << ", prefix=" << token.substr(0, 8) << ")";
+        co_return error_response(k401Unauthorized, "Unknown auth token (len=" +
+            std::to_string(token.size()) + ", prefix=" + token.substr(0, 8) + ")");
+    }
 
     co_return error_response(k200OK);
 }
