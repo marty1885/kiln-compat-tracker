@@ -10,7 +10,6 @@ namespace kiln {
 struct WorkerConfig {
     std::string server_url;
     std::string auth_token;
-    std::string worker_name;
     std::string workspace_dir;
     int poll_interval_seconds = 30;
 
@@ -26,7 +25,6 @@ struct WorkerConfig {
         WorkerConfig c;
         c.server_url = yaml["server_url"].as<std::string>();
         c.auth_token = yaml["auth_token"].as<std::string>();
-        c.worker_name = yaml["worker_name"].as<std::string>();
 
         if (yaml["workspace_dir"])
             c.workspace_dir = yaml["workspace_dir"].as<std::string>();

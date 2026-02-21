@@ -11,7 +11,6 @@ namespace kiln {
 // --- Worker → Server requests ---
 
 struct HeartbeatRequest {
-    std::string name;
     std::string arch;
     std::string os;
     std::string os_version;

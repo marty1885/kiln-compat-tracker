@@ -30,9 +30,6 @@ server_url: http://my-server:7621
 # Bearer token issued by the server when the worker was registered (Admin → Workers → Add Worker)
 auth_token: <token from server>
 
-# Display name for this worker, must match what was registered on the server
-worker_name: my-builder-01
-
 
 # Optional
 

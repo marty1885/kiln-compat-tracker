@@ -35,7 +35,7 @@ public:
     }
 
     Task<> run() {
-        std::cout << "Worker '" << config_.worker_name << "' starting\n";
+        std::cout << "Worker starting\n";
         std::cout << "  " << sysinfo_.arch << "/" << sysinfo_.os
                   << " " << sysinfo_.os_version << "\n";
         std::cout << "  " << sysinfo_.cpu_model << " (" << sysinfo_.cores
@@ -151,7 +151,6 @@ private:
     // Returns true if the server was reachable (even if it returned an error code).
     Task<bool> send_heartbeat() {
         HeartbeatRequest hb{
-            .name = config_.worker_name,
             .arch = sysinfo_.arch,
             .os = sysinfo_.os,
             .os_version = sysinfo_.os_version,
