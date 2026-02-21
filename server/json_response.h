@@ -13,7 +13,13 @@ drogon::HttpResponsePtr json_response(T &&value,
     if (auto err = glz::write_json(std::forward<T>(value), json); err) {
         auto resp = drogon::HttpResponse::newHttpResponse();
         resp->setStatusCode(drogon::k500InternalServerError);
-        resp->setBody("JSON serialization error");
+        resp->setBody("JSON serialization error: " + glz::format_error(err, json));
+        return resp;
+    }
+    if (json.empty()) {
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->setStatusCode(drogon::k500InternalServerError);
+        resp->setBody("JSON serialization produced empty output");
         return resp;
     }
     auto resp = drogon::HttpResponse::newHttpResponse();
