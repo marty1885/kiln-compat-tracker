@@ -33,7 +33,18 @@ struct WorkerConfig {
         if (yaml["poll_interval_seconds"])
             c.poll_interval_seconds = yaml["poll_interval_seconds"].as<int>();
 
+        c.workspace_dir = expand_home(c.workspace_dir);
         return c;
+    }
+
+private:
+    static std::string expand_home(const std::string &path) {
+        if (path.empty() || path[0] != '~')
+            return path;
+        const char *home = std::getenv("HOME");
+        if (!home)
+            throw std::runtime_error("workspace_dir starts with ~ but HOME is not set");
+        return std::string(home) + path.substr(1);
     }
 };
 
