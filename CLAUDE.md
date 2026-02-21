@@ -46,3 +46,13 @@ All endpoints are versioned under `/api/v1/`.
 - `json_response<T>()` and `error_response()` helpers in `server/json_response.h`.
 - Frontend: plain HTML/CSS/JS. Pull JS libs from CDN. No web build system.
 - `find_package(Drogon CONFIG REQUIRED)` — the CONFIG keyword is required.
+
+
+## Coding Guidelines
+
+- State assumptions before implementing
+- Produce code you wouldn't want to debug at 3am
+- Don't handle only the happy path
+- Don't solve problems you weren't asked to solve
+- Don't import complexity you don't need
+

@@ -46,7 +46,8 @@ SystemInfo detect_system_info() {
             : distro_name + " " + distro_version;
     }
 
-    // CPU model from /proc/cpuinfo
+    // CPU model — try /proc/cpuinfo first (x86 has "model name"),
+    // fall back to lscpu which works on both x86 and ARM.
     if (std::ifstream f("/proc/cpuinfo"); f) {
         std::string line;
         while (std::getline(f, line)) {
@@ -56,6 +57,31 @@ SystemInfo detect_system_info() {
                     info.cpu_model = line.substr(pos + 2);
                 break;
             }
+        }
+    }
+    if (info.cpu_model.empty()) {
+        auto r = run_command("lscpu 2>/dev/null");
+        if (r.exit_code == 0) {
+            std::istringstream iss(r.output);
+            std::string line;
+            std::string model_name, model;
+            auto extract = [](const std::string &l, size_t prefix_len) {
+                auto val = l.substr(prefix_len);
+                auto start = val.find_first_not_of(" \t");
+                if (start != std::string::npos)
+                    val = val.substr(start);
+                // Treat "-" as empty (common on ARM)
+                if (val == "-") val.clear();
+                return val;
+            };
+            while (std::getline(iss, line)) {
+                if (model_name.empty() && line.starts_with("Model name:"))
+                    model_name = extract(line, 11);
+                else if (model.empty() && line.starts_with("Model:"))
+                    model = extract(line, 6);
+            }
+            // Prefer "Model name:" but fall back to "Model:" (e.g. Rockchip RK3588)
+            info.cpu_model = model_name.empty() ? model : model_name;
         }
     }
 

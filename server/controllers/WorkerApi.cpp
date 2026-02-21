@@ -43,12 +43,8 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
         hb.arch, hb.os, hb.os_version, hb.distro, hb.cpu_model,
         hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, token);
 
-    if (r.empty()) {
-        LOG_WARN << "Heartbeat: unknown token (len=" << token.size()
-                 << ", prefix=" << token.substr(0, 8) << ")";
-        co_return error_response(k401Unauthorized, "Unknown auth token (len=" +
-            std::to_string(token.size()) + ", prefix=" + token.substr(0, 8) + ")");
-    }
+    if (r.empty())
+        co_return error_response(k401Unauthorized, "Unknown auth token");
 
     co_return error_response(k200OK);
 }
@@ -66,7 +62,7 @@ Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
         token);
 
     if (workerResult.empty())
-        co_return error_response(k401Unauthorized);
+        co_return error_response(k401Unauthorized, "Unknown auth token");
 
     auto workerId = workerResult[0]["id"].as<int64_t>();
 
