@@ -178,8 +178,12 @@ private:
         auto resp = co_await send_request(req);
         if (!resp)
             co_return false; // network unreachable
-        if (resp->statusCode() != k200OK)
+        if (resp->statusCode() == k401Unauthorized) {
+            std::cerr << "Heartbeat rejected: invalid auth token. "
+                         "Is this worker registered on the server?\n";
+        } else if (resp->statusCode() != k200OK) {
             std::cerr << "Heartbeat rejected (" << resp->statusCode() << ")\n";
+        }
         co_return true;
     }
 
@@ -198,6 +202,11 @@ private:
         if (resp->statusCode() == k204NoContent)
             co_return PollOutcome{};
 
+        if (resp->statusCode() == k401Unauthorized) {
+            std::cerr << "Poll rejected: invalid auth token. "
+                         "Is this worker registered on the server?\n";
+            co_return PollOutcome{};
+        }
         if (resp->statusCode() != k200OK) {
             std::cerr << "Poll failed: " << resp->statusCode() << "\n";
             co_return PollOutcome{};

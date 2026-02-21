@@ -36,12 +36,15 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
         co_return error_response(k400BadRequest, glz::format_error(err, body));
 
     auto db = app().getDbClient();
-    co_await db->execSqlCoro(
+    auto r = co_await db->execSqlCoro(
         "UPDATE workers SET arch=$1, os=$2, os_version=$3, distro=$4, cpu_model=$5, "
         "cores=$6, ram_mb=$7, compiler=$8, compiler_version=$9, last_seen=now() "
-        "WHERE auth_token=$10",
+        "WHERE auth_token=$10 RETURNING id",
         hb.arch, hb.os, hb.os_version, hb.distro, hb.cpu_model,
         hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, token);
+
+    if (r.empty())
+        co_return error_response(k401Unauthorized, "Unknown auth token");
 
     co_return error_response(k200OK);
 }
