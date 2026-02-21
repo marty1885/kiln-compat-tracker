@@ -10,11 +10,10 @@ option(BUILD_SERVER "Build tracker server" ON)
 find_package(Drogon CONFIG REQUIRED)
 find_package(glaze REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(Botan REQUIRED)
 
 if(BUILD_SERVER)
-
-# --- Server ---
+    find_package(Botan REQUIRED)
+    # --- Server ---
     add_executable(kiln-compat-tracker-server
         server/main.cpp
         server/controllers/WorkerApi.cpp
