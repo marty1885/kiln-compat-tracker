@@ -19,8 +19,16 @@ Task<HttpResponsePtr> AdminApi::status(HttpRequestPtr req) {
     AuthStatus s{.needs_setup = needsSetup};
     auto session = req->session();
     if (session && session->find("admin_id")) {
-        s.logged_in = true;
-        s.username = session->get<std::string>("admin_username");
+        auto adminId = session->get<int64_t>("admin_id");
+        auto adminResult = co_await db->execSqlCoro(
+            "SELECT username FROM admins WHERE id = $1", adminId);
+        if (!adminResult.empty()) {
+            s.logged_in = true;
+            s.username = adminResult[0]["username"].as<std::string>();
+        } else {
+            // Admin was deleted — clear stale session
+            session->clear();
+        }
     }
     co_return json_response(s);
 }
