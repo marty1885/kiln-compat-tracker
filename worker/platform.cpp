@@ -65,19 +65,25 @@ SystemInfo detect_system_info() {
             std::istringstream iss(r.output);
             std::string line;
             std::string model_name, model;
+            // Extract the value after the prefix, trimming whitespace.
+            // Returns empty for useless values like "-" or bare numbers
+            // (big.LITTLE SoCs emit multiple "Model:" lines, e.g. "0" for
+            // the little cores and "Rockchip RK3588" for the SoC).
             auto extract = [](const std::string &l, size_t prefix_len) {
                 auto val = l.substr(prefix_len);
                 auto start = val.find_first_not_of(" \t");
                 if (start != std::string::npos)
                     val = val.substr(start);
-                // Treat "-" as empty (common on ARM)
-                if (val == "-") val.clear();
+                if (val == "-") return std::string{};
+                // Pure numeric = not a useful model name
+                if (!val.empty() && val.find_first_not_of("0123456789") == std::string::npos)
+                    return std::string{};
                 return val;
             };
             while (std::getline(iss, line)) {
                 if (model_name.empty() && line.starts_with("Model name:"))
                     model_name = extract(line, 11);
-                else if (model.empty() && line.starts_with("Model:"))
+                if (model.empty() && line.starts_with("Model:"))
                     model = extract(line, 6);
             }
             // Prefer "Model name:" but fall back to "Model:" (e.g. Rockchip RK3588)

@@ -16,7 +16,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "SELECT w.id, w.name, w.auth_token, w.arch, w.os, w.os_version, w.distro, "
-        "w.resource_tier_max::text, w.dep_level_max::text, w.last_seen::text, "
+        "w.resource_tier_max::text, w.dep_level_max::text, to_char(w.last_seen AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_seen, "
         "p.name AS current_job "
         "FROM workers w "
         "LEFT JOIN active_jobs aj ON aj.worker_id = w.id "
