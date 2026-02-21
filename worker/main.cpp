@@ -179,8 +179,7 @@ private:
         if (!resp)
             co_return false; // network unreachable
         if (resp->statusCode() == k401Unauthorized) {
-            std::cerr << "Heartbeat rejected: invalid auth token. "
-                         "Is this worker registered on the server?\n";
+            std::cerr << "Heartbeat rejected (401): " << std::string(resp->body()) << "\n";
         } else if (resp->statusCode() != k200OK) {
             std::cerr << "Heartbeat rejected (" << resp->statusCode() << ")\n";
         }
@@ -203,8 +202,7 @@ private:
             co_return PollOutcome{};
 
         if (resp->statusCode() == k401Unauthorized) {
-            std::cerr << "Poll rejected: invalid auth token. "
-                         "Is this worker registered on the server?\n";
+            std::cerr << "Poll rejected (401): " << std::string(resp->body()) << "\n";
             co_return PollOutcome{};
         }
         if (resp->statusCode() != k200OK) {

@@ -28,7 +28,7 @@ static std::string extractBearer(const HttpRequestPtr &req) {
 Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
     auto token = extractBearer(req);
     if (token.empty())
-        co_return error_response(k401Unauthorized);
+        co_return error_response(k401Unauthorized, "No Bearer token in Authorization header");
 
     HeartbeatRequest hb{};
     auto body = std::string(req->body());
@@ -52,7 +52,7 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
 Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
     auto token = extractBearer(req);
     if (token.empty())
-        co_return error_response(k401Unauthorized);
+        co_return error_response(k401Unauthorized, "No Bearer token in Authorization header");
 
     auto db = app().getDbClient();
 
