@@ -134,6 +134,12 @@ std::string detect_compiler() {
         if (r.output.find("clang") != std::string::npos) return "clang";
         if (r.output.find("GCC") != std::string::npos || r.output.find("g++") != std::string::npos)
             return "gcc";
+        // GCC-specific flag: -dumpfullversion (clang doesn't support it).
+        // Catches Debian/Ubuntu where c++ --version shows e.g.
+        //   c++ (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+        auto dfv = run_command("c++ -dumpfullversion 2>/dev/null");
+        if (dfv.exit_code == 0 && !dfv.output.empty())
+            return "gcc";
     }
     return "unknown";
 }
