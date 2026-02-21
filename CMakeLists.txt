@@ -11,7 +11,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(Botan REQUIRED)
 
 # --- Server ---
-add_executable(kiln-server
+add_executable(kiln-compat-tracker-server
     server/main.cpp
     server/controllers/WorkerApi.cpp
     server/controllers/ProjectApi.cpp
@@ -20,8 +20,8 @@ add_executable(kiln-server
     server/controllers/WorkerMgmtApi.cpp
 )
 
-target_include_directories(kiln-server PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(kiln-server PRIVATE
+target_include_directories(kiln-compat-tracker-server PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(kiln-compat-tracker-server PRIVATE
     Drogon::Drogon
     glaze::glaze
     yaml-cpp::yaml-cpp
@@ -29,14 +29,14 @@ target_link_libraries(kiln-server PRIVATE
 )
 
 # --- Worker ---
-add_executable(kiln-worker
+add_executable(kiln-compat-tracker-worker
     worker/main.cpp
     worker/platform.cpp
     worker/builder.cpp
 )
 
-target_include_directories(kiln-worker PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(kiln-worker PRIVATE
+target_include_directories(kiln-compat-tracker-worker PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(kiln-compat-tracker-worker PRIVATE
     Drogon::Drogon
     glaze::glaze
     yaml-cpp::yaml-cpp

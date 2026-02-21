@@ -1,0 +1,38 @@
+[Unit]
+Description=Kiln Compat Worker
+Documentation=file:/usr/local/share/doc/kiln-compat-tracker/worker/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kiln-worker
+Group=kiln-worker
+
+ExecStart=/usr/local/bin/kiln-worker /etc/kiln-worker/config.yaml
+
+# Restart on crash or network failure; the worker does its own exponential
+# backoff for transient errors, so a short restart delay here is fine.
+Restart=on-failure
+RestartSec=10s
+
+# Working directory and persistent state
+WorkingDirectory=/var/lib/kiln-worker
+StateDirectory=kiln-worker
+StateDirectoryMode=0750
+
+# Make sure the SSH agent/known_hosts in the service user's home are accessible
+Environment=HOME=/var/lib/kiln-worker
+
+# Give builds reasonable time to finish before a stop is considered a timeout
+TimeoutStopSec=120s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/kiln-worker
+
+[Install]
+WantedBy=multi-user.target

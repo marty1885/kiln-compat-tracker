@@ -11,11 +11,15 @@ public:
     ADD_METHOD_TO(WorkerMgmtApi::list, "/api/v1/admin/workers", drogon::Get);
     ADD_METHOD_TO(WorkerMgmtApi::create, "/api/v1/admin/workers", drogon::Post);
     ADD_METHOD_TO(WorkerMgmtApi::remove, "/api/v1/admin/workers/{id}", drogon::Delete);
+    ADD_METHOD_TO(WorkerMgmtApi::update, "/api/v1/admin/workers/{id}", drogon::Patch);
+    ADD_METHOD_TO(WorkerMgmtApi::revealToken, "/api/v1/admin/workers/{id}/token", drogon::Post);
     METHOD_LIST_END
 
     drogon::Task<drogon::HttpResponsePtr> list(drogon::HttpRequestPtr req);
     drogon::Task<drogon::HttpResponsePtr> create(drogon::HttpRequestPtr req);
     drogon::Task<drogon::HttpResponsePtr> remove(drogon::HttpRequestPtr req, int64_t id);
+    drogon::Task<drogon::HttpResponsePtr> update(drogon::HttpRequestPtr req, int64_t id);
+    drogon::Task<drogon::HttpResponsePtr> revealToken(drogon::HttpRequestPtr req, int64_t id);
 };
 
 } // namespace kiln

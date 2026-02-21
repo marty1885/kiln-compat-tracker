@@ -12,6 +12,7 @@ public:
     ADD_METHOD_TO(DashboardApi::workers, "/api/v1/dashboard/workers", drogon::Get);
     ADD_METHOD_TO(DashboardApi::projectHistory, "/api/v1/dashboard/project/{id}/history", drogon::Get);
     ADD_METHOD_TO(DashboardApi::buildLog, "/api/v1/dashboard/build/{id}/log", drogon::Get);
+    ADD_METHOD_TO(DashboardApi::buildCmakeLog, "/api/v1/dashboard/build/{id}/cmake-log", drogon::Get);
     ADD_METHOD_TO(DashboardApi::trend, "/api/v1/dashboard/trend", drogon::Get);
     METHOD_LIST_END
 
@@ -19,6 +20,7 @@ public:
     drogon::Task<drogon::HttpResponsePtr> workers(drogon::HttpRequestPtr req);
     drogon::Task<drogon::HttpResponsePtr> projectHistory(drogon::HttpRequestPtr req, int64_t id);
     drogon::Task<drogon::HttpResponsePtr> buildLog(drogon::HttpRequestPtr req, int64_t id);
+    drogon::Task<drogon::HttpResponsePtr> buildCmakeLog(drogon::HttpRequestPtr req, int64_t id);
     drogon::Task<drogon::HttpResponsePtr> trend(drogon::HttpRequestPtr req);
 };
 

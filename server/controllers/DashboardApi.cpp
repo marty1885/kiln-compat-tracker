@@ -1,7 +1,9 @@
 #include "DashboardApi.h"
 #include "common/protocol.h"
+#include "server/config.h"
 #include "server/json_response.h"
 #include <drogon/orm/DbClient.h>
+#include <filesystem>
 
 using namespace drogon;
 using namespace drogon::orm;
@@ -13,12 +15,12 @@ Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
 
     std::vector<MatrixCell> cells;
 
-    // Latest build result per project per platform
+    // Latest build result per project per platform (arch-os-distro-compiler)
     auto builds = co_await db->execSqlCoro(
         "SELECT DISTINCT ON (br.project_id, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || br.compiler) "
+        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler) "
         "br.project_id, p.name AS project_name, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || br.compiler AS platform, "
+        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler AS platform, "
         "br.status::text, br.cmake_fallback_status::text, "
         "br.finished_at::text, br.id AS build_result_id "
         "FROM build_results br "
@@ -26,7 +28,7 @@ Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
         "LEFT JOIN workers w ON w.id = br.worker_id "
         "WHERE p.enabled = true "
         "ORDER BY br.project_id, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || br.compiler, "
+        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler, "
         "br.finished_at DESC");
 
     for (const auto &row : builds) {
@@ -57,7 +59,8 @@ Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
     // Active jobs as "building"
     auto jobs = co_await db->execSqlCoro(
         "SELECT aj.project_id, p.name AS project_name, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') AS platform "
+        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || "
+        "COALESCE(w.distro,'') || '-' || COALESCE(w.compiler,'') AS platform "
         "FROM active_jobs aj "
         "JOIN projects p ON p.id = aj.project_id "
         "LEFT JOIN workers w ON w.id = aj.worker_id");
@@ -77,7 +80,7 @@ Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
 Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
-        "SELECT w.id, w.name, w.arch, w.os, w.os_version, w.cpu_model, "
+        "SELECT w.id, w.name, w.arch, w.os, w.os_version, w.distro, w.cpu_model, "
         "w.cores, w.ram_mb, w.resource_tier_max::text, w.last_seen::text, "
         "p.name AS current_job "
         "FROM workers w "
@@ -93,6 +96,7 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
             .arch = row["arch"].as<std::string>(),
             .os = row["os"].as<std::string>(),
             .os_version = row["os_version"].as<std::string>(),
+            .distro = row["distro"].as<std::string>(),
             .cpu_model = row["cpu_model"].as<std::string>(),
             .cores = row["cores"].as<int>(),
             .ram_mb = row["ram_mb"].as<int>(),
@@ -114,7 +118,9 @@ Task<HttpResponsePtr> DashboardApi::projectHistory(HttpRequestPtr req, int64_t i
         "br.compiler, br.compiler_version, br.status::text, "
         "br.test_status::text, br.cmake_fallback_status::text, "
         "br.duration_seconds, br.cmake_duration_seconds, "
-        "br.started_at::text, br.finished_at::text "
+        "br.started_at::text, br.finished_at::text, "
+        "br.log_path IS NOT NULL AS has_log, "
+        "br.cmake_log_path IS NOT NULL AS has_cmake_log "
         "FROM build_results br "
         "JOIN projects p ON p.id = br.project_id "
         "LEFT JOIN workers w ON w.id = br.worker_id "
@@ -144,23 +150,56 @@ Task<HttpResponsePtr> DashboardApi::projectHistory(HttpRequestPtr req, int64_t i
                 ? std::optional<int>{} : std::optional{row["cmake_duration_seconds"].as<int>()},
             .started_at = row["started_at"].as<std::string>(),
             .finished_at = row["finished_at"].as<std::string>(),
+            .has_log = row["has_log"].as<bool>(),
+            .has_cmake_log = row["has_cmake_log"].as<bool>(),
         });
     }
     co_return json_response(results);
 }
 
+// Validates that a log path from the DB is inside the expected log directory
+// before serving it, as defense-in-depth against a compromised DB row leading
+// to an arbitrary file read.
+static bool is_safe_log_path(const std::string &path) {
+    auto canonical_log_dir = std::filesystem::weakly_canonical(kiln::log_dir);
+    auto candidate = std::filesystem::weakly_canonical(path);
+    auto [end, _] = std::mismatch(canonical_log_dir.begin(), canonical_log_dir.end(),
+                                   candidate.begin());
+    return end == canonical_log_dir.end();
+}
+
 Task<HttpResponsePtr> DashboardApi::buildLog(HttpRequestPtr req, int64_t id) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
-        "SELECT log_path, cmake_log_path FROM build_results WHERE id=$1", static_cast<int64_t>(id));
+        "SELECT log_path FROM build_results WHERE id=$1", id);
+    if (r.empty() || r[0]["log_path"].isNull())
+        co_return error_response(k404NotFound, "No log available");
+    auto path = r[0]["log_path"].as<std::string>();
+    if (!is_safe_log_path(path))
+        co_return error_response(k403Forbidden, "Invalid log path");
+    if (!std::filesystem::exists(path))
+        co_return error_response(k404NotFound, "Log file missing on disk");
+    auto resp = HttpResponse::newFileResponse(path);
+    resp->addHeader("Content-Disposition",
+        "attachment; filename=\"build-" + std::to_string(id) + ".log\"");
+    co_return resp;
+}
 
-    if (r.empty())
-        co_return error_response(k404NotFound);
-
-    co_return json_response(LogPathsResponse{
-        .log_path = r[0]["log_path"].isNull() ? "" : r[0]["log_path"].as<std::string>(),
-        .cmake_log_path = r[0]["cmake_log_path"].isNull() ? "" : r[0]["cmake_log_path"].as<std::string>(),
-    });
+Task<HttpResponsePtr> DashboardApi::buildCmakeLog(HttpRequestPtr req, int64_t id) {
+    auto db = app().getDbClient();
+    auto r = co_await db->execSqlCoro(
+        "SELECT cmake_log_path FROM build_results WHERE id=$1", id);
+    if (r.empty() || r[0]["cmake_log_path"].isNull())
+        co_return error_response(k404NotFound, "No CMake log available");
+    auto path = r[0]["cmake_log_path"].as<std::string>();
+    if (!is_safe_log_path(path))
+        co_return error_response(k403Forbidden, "Invalid log path");
+    if (!std::filesystem::exists(path))
+        co_return error_response(k404NotFound, "CMake log file missing on disk");
+    auto resp = HttpResponse::newFileResponse(path);
+    resp->addHeader("Content-Disposition",
+        "attachment; filename=\"cmake-build-" + std::to_string(id) + ".log\"");
+    co_return resp;
 }
 
 Task<HttpResponsePtr> DashboardApi::trend(HttpRequestPtr req) {
@@ -175,17 +214,23 @@ Task<HttpResponsePtr> DashboardApi::trend(HttpRequestPtr req) {
         if (days > 365) days = 365;
     }
 
-    // Count of distinct projects with a passing build per day
+    // Per-project, per-day: did it pass? did it show a kiln bug?
+    // Then aggregate: kiln_bugs only counts projects with NO passing build that day.
     auto passing = co_await db->execSqlCoro(
-        "SELECT d.date::text, "
-        "  COUNT(DISTINCT CASE WHEN br.status = 'pass' THEN br.project_id END) AS passing, "
-        "  COUNT(DISTINCT CASE WHEN br.status != 'pass' "
-        "    AND br.cmake_fallback_status = 'pass' THEN br.project_id END) AS kiln_bugs "
+        "WITH daily AS ("
+        "  SELECT br.finished_at::date AS day, br.project_id,"
+        "    BOOL_OR(br.status = 'pass') AS any_pass,"
+        "    BOOL_OR(br.status != 'pass' AND br.cmake_fallback_status = 'pass') AS any_kiln_bug"
+        "  FROM build_results br"
+        "  GROUP BY br.finished_at::date, br.project_id"
+        ")"
+        "SELECT d.date::text,"
+        "  COUNT(DISTINCT CASE WHEN ds.any_pass THEN ds.project_id END) AS passing,"
+        "  COUNT(DISTINCT CASE WHEN NOT ds.any_pass AND ds.any_kiln_bug THEN ds.project_id END) AS kiln_bugs "
         "FROM generate_series("
-        "  (current_date - make_interval(days => $1))::date, "
+        "  (current_date - make_interval(days => $1))::date,"
         "  current_date, '1 day') AS d(date) "
-        "LEFT JOIN build_results br "
-        "  ON br.finished_at::date = d.date "
+        "LEFT JOIN daily ds ON ds.day = d.date "
         "GROUP BY d.date "
         "ORDER BY d.date",
         days);

@@ -1,4 +1,4 @@
-server_url: http://localhost:8080
+server_url: http://localhost:7621
 auth_token: test-worker-token-1
 worker_name: dev-local
 resource_tier_max: small

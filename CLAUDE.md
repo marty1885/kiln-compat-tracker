@@ -7,8 +7,8 @@ Continuous compatibility testing for Kiln (a CMake-compatible build system). Coo
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
-./build/kiln-server  # runs on :8080, serve from repo root
-./build/kiln-worker worker/config.yaml  # connect a worker
+./build/kiln-compat-tracker-server  # runs on :7621, serve from repo root
+./build/kiln-compat-tracker-worker worker/config.yaml  # connect a worker
 ```
 
 Dependencies (system-installed): Drogon, Glaze, yaml-cpp.

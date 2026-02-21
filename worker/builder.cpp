@@ -50,7 +50,7 @@ std::string prepare_project(const WorkerConfig &config, const PollResponse &job)
     return trim_newlines(hash_result.output);
 }
 
-void ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_hash) {
+std::string ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_hash) {
     auto kiln_dir = fs::path(config.kiln_source_dir());
     auto kiln_binary = kiln_dir / "build" / "kiln";
 
@@ -69,7 +69,7 @@ void ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_hash) {
 
     if (!kiln_git_hash.empty() && current_hash == kiln_git_hash && fs::exists(kiln_binary)) {
         std::cout << "  Kiln already at " << kiln_git_hash.substr(0, 10) << "\n";
-        return;
+        return current_hash;
     }
 
     // Fetch and checkout requested hash
@@ -84,7 +84,7 @@ void ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_hash) {
             throw std::runtime_error("Failed to checkout kiln hash " + kiln_git_hash + ": " + r.output);
     }
 
-    // Build kiln: mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja && ninja
+    // Build kiln
     auto build_dir = kiln_dir / "build";
     fs::create_directories(build_dir);
 
@@ -100,7 +100,10 @@ void ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_hash) {
     if (!fs::exists(kiln_binary))
         throw std::runtime_error("Kiln build succeeded but binary not found at " + kiln_binary.string());
 
+    // Return the actual hash that ended up being built
+    auto actual = run_command("git -C " + kiln_dir.string() + " rev-parse HEAD");
     std::cout << "  Kiln built successfully\n";
+    return trim_newlines(actual.output);
 }
 
 BuildResult run_build(const WorkerConfig &config, const PollResponse &job,

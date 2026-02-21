@@ -22,6 +22,30 @@ SystemInfo detect_system_info() {
         info.os_version = u.release;
     }
 
+    // Distro from /etc/os-release (NAME + VERSION_ID fields)
+    // Rolling distros (Arch, openSUSE TW) have no VERSION_ID — just use NAME.
+    // Versioned distros (Ubuntu, Fedora) have VERSION_ID — combine as "Ubuntu 22.04".
+    if (std::ifstream f("/etc/os-release"); f) {
+        std::string line;
+        std::string distro_name, distro_version;
+        while (std::getline(f, line)) {
+            auto strip_quotes = [](std::string val) {
+                if (val.size() >= 2 && val.front() == '"' && val.back() == '"')
+                    val = val.substr(1, val.size() - 2);
+                return val;
+            };
+            if (line.starts_with("NAME=") && distro_name.empty())
+                distro_name = strip_quotes(line.substr(5));
+            else if (line.starts_with("VERSION_ID=") && distro_version.empty())
+                distro_version = strip_quotes(line.substr(11));
+            if (!distro_name.empty() && !distro_version.empty())
+                break;
+        }
+        info.distro = distro_version.empty()
+            ? distro_name
+            : distro_name + " " + distro_version;
+    }
+
     // CPU model from /proc/cpuinfo
     if (std::ifstream f("/proc/cpuinfo"); f) {
         std::string line;
@@ -35,10 +59,10 @@ SystemInfo detect_system_info() {
         }
     }
 
-    // Core count
+    // Core count — std::thread::hardware_concurrency() works on Linux and *BSD
     info.cores = static_cast<int>(std::thread::hardware_concurrency());
 
-    // RAM from /proc/meminfo
+    // RAM from /proc/meminfo (Linux)
     if (std::ifstream f("/proc/meminfo"); f) {
         std::string line;
         while (std::getline(f, line)) {
@@ -50,6 +74,25 @@ SystemInfo detect_system_info() {
                 info.ram_mb = static_cast<int>(kb / 1024);
                 break;
             }
+        }
+    }
+
+    // *BSD fallbacks (sysctl) for fields not populated above
+    if (info.cpu_model.empty()) {
+        auto r = run_command("sysctl -n hw.model 2>/dev/null");
+        if (r.exit_code == 0 && !r.output.empty()) {
+            auto s = r.output;
+            while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' '))
+                s.pop_back();
+            info.cpu_model = std::move(s);
+        }
+    }
+    if (info.ram_mb == 0) {
+        // hw.physmem is in bytes
+        auto r = run_command("sysctl -n hw.physmem 2>/dev/null");
+        if (r.exit_code == 0 && !r.output.empty()) {
+            try { info.ram_mb = static_cast<int>(std::stoll(r.output) / 1024 / 1024); }
+            catch (...) {}
         }
     }
 

@@ -151,4 +151,35 @@ Task<HttpResponsePtr> AdminApi::invite(HttpRequestPtr req) {
     co_return json_response(InviteResponse{.token = token, .url = url});
 }
 
+Task<HttpResponsePtr> AdminApi::getKilnHash(HttpRequestPtr req) {
+    auto db = app().getDbClient();
+    auto r = co_await db->execSqlCoro(
+        "SELECT value FROM config WHERE key='current_kiln_hash'");
+    auto hash = r.empty() ? "" : r[0]["value"].as<std::string>();
+    co_return json_response(KilnHashInfo{.git_hash = hash});
+}
+
+// TODO: Replace manual set with a background poller that calls the GitHub API:
+//   GET https://api.github.com/repos/marty1885/kiln/commits/HEAD
+//   and updates current_kiln_hash automatically when a new commit lands.
+Task<HttpResponsePtr> AdminApi::setKilnHash(HttpRequestPtr req) {
+    if (!is_admin(req))
+        co_return error_response(k401Unauthorized);
+
+    KilnHashRequest kr{};
+    auto body = std::string(req->body());
+    if (auto err = glz::read_json(kr, body); err)
+        co_return error_response(k400BadRequest, glz::format_error(err, body));
+
+    if (kr.git_hash.empty())
+        co_return error_response(k400BadRequest, "git_hash required");
+
+    auto db = app().getDbClient();
+    co_await db->execSqlCoro(
+        "UPDATE config SET value=$1 WHERE key='current_kiln_hash'",
+        kr.git_hash);
+
+    co_return error_response(k200OK);
+}
+
 } // namespace kiln

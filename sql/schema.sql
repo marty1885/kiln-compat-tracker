@@ -29,7 +29,9 @@ CREATE TABLE projects (
     test_resource_tier_min resource_tier,
     resource_tier resource_tier NOT NULL DEFAULT 'small',
     cooldown_minutes INT NOT NULL DEFAULT 30,
-    enabled BOOLEAN NOT NULL DEFAULT true
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    -- Migration 5: set by trigger, suppresses cooldown for builds before this time
+    forced_rebuild_after TIMESTAMPTZ
 );
 
 CREATE TABLE workers (
@@ -43,7 +45,11 @@ CREATE TABLE workers (
     cores INT NOT NULL DEFAULT 0,
     ram_mb INT NOT NULL DEFAULT 0,
     resource_tier_max resource_tier NOT NULL DEFAULT 'small',
-    last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Migration 4: distro and compiler for per-platform scheduling
+    distro TEXT NOT NULL DEFAULT '',
+    compiler TEXT NOT NULL DEFAULT '',
+    compiler_version TEXT NOT NULL DEFAULT ''
 );
 
 -- Migration 3: worker_id nullable, ON DELETE SET NULL

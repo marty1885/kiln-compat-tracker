@@ -1,8 +1,21 @@
 #include "server/migrate.h"
+#include "server/config.h"
 #include <drogon/drogon.h>
+#include <filesystem>
 #include <iostream>
 
-int main() {
+int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--log-dir" && i + 1 < argc) {
+            kiln::log_dir = argv[++i];
+        }
+    }
+    if (kiln::log_dir.empty()) {
+        std::cerr << "Usage: kiln-server --log-dir <path>\n";
+        return 1;
+    }
+    std::filesystem::create_directories(kiln::log_dir);
+    std::cout << "Log storage: " << kiln::log_dir << "\n";
     auto &app = drogon::app();
 
     // Serve static files from server/static/
@@ -35,8 +48,8 @@ int main() {
     });
 
     app.enableSession(3600);
-    app.addListener("0.0.0.0", 8080);
-    std::cout << "Kiln Compat Tracker starting on http://localhost:8080\n";
+    app.addListener("0.0.0.0", 7621);
+    std::cout << "Kiln Compat Tracker starting on http://localhost:7621\n";
     app.run();
     return 0;
 }

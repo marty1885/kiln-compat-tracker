@@ -15,10 +15,13 @@ struct HeartbeatRequest {
     std::string arch;
     std::string os;
     std::string os_version;
+    std::string distro;
     std::string cpu_model;
     int cores{};
     int ram_mb{};
     std::string resource_tier_max;
+    std::string compiler;
+    std::string compiler_version;
 };
 
 struct PollResponse {
@@ -43,11 +46,14 @@ struct ResultRequest {
     std::string compiler;
     std::string compiler_version;
     std::string project_commit;
+    std::string kiln_git_hash;   // actual hash of kiln HEAD used for this build
     std::optional<std::string> test_status;
     std::optional<int> test_duration_seconds;
     std::optional<std::string> cmake_fallback_status;
     std::optional<int> cmake_duration_seconds;
     std::optional<std::string> cmake_version;
+    std::optional<std::string> log;
+    std::optional<std::string> cmake_log;
 };
 
 // --- Dashboard API responses ---
@@ -94,6 +100,7 @@ struct WorkerInfo {
     std::string arch;
     std::string os;
     std::string os_version;
+    std::string distro;
     std::string cpu_model;
     int cores{};
     int ram_mb{};
@@ -117,15 +124,13 @@ struct BuildResultInfo {
     std::optional<int> cmake_duration_seconds;
     std::string started_at;
     std::string finished_at;
+    bool has_log{false};
+    bool has_cmake_log{false};
 };
 
 // Small response types for simple JSON replies
 struct IdResponse { int64_t id{}; };
 struct EnabledResponse { bool enabled{}; };
-struct LogPathsResponse {
-    std::string log_path;
-    std::string cmake_log_path;
-};
 
 struct TrendPoint {
     std::string date;        // YYYY-MM-DD
@@ -158,11 +163,25 @@ struct InviteResponse {
     std::string url;
 };
 
+// --- Kiln version management ---
+
+struct KilnHashRequest {
+    std::string git_hash;
+};
+
+struct KilnHashInfo {
+    std::string git_hash;
+};
+
 // --- Worker Management API ---
 
 struct WorkerCreateRequest {
     std::string name;
     std::string resource_tier_max{"small"};
+};
+
+struct WorkerUpdateRequest {
+    std::string resource_tier_max;
 };
 
 struct WorkerCreateResponse {
@@ -173,13 +192,22 @@ struct WorkerCreateResponse {
 struct WorkerAdminInfo {
     int64_t id{};
     std::string name;
-    std::string auth_token;
+    std::string auth_token_prefix; // first 8 chars only; use the reveal endpoint for the full token
     std::string arch;
     std::string os;
     std::string os_version;
+    std::string distro;
     std::string resource_tier_max;
     std::string last_seen;
     std::optional<std::string> current_job;
+};
+
+struct VerifyPasswordRequest {
+    std::string password;
+};
+
+struct WorkerTokenResponse {
+    std::string auth_token;
 };
 
 } // namespace kiln

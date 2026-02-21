@@ -172,6 +172,24 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
         <div class="section-header">
             <h2>Admin</h2>
         </div>
+
+        <h3 style="color:#f0f6fc;margin-bottom:12px">Kiln Version</h3>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:24px">
+            <div style="font-size:13px;color:#8b949e;margin-bottom:8px">
+                Current kiln hash tracked by the scheduler. Workers will build against this commit.
+                <!-- TODO: This will be set automatically by a GitHub API poller. For now, set manually. -->
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <code id="current-kiln-hash" style="color:#3fb950;font-size:14px">loading...</code>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="kiln-hash-input" placeholder="Full git commit hash (40 hex chars)"
+                    style="flex:1;padding:6px 10px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-family:monospace;font-size:13px">
+                <button class="btn btn-primary" onclick="setKilnHash()">Set Hash</button>
+            </div>
+            <div id="kiln-hash-error" class="error-msg" style="margin-top:6px"></div>
+        </div>
+
         <h3 style="color:#f0f6fc;margin-bottom:12px">Workers</h3>
         <div style="margin-bottom:12px;display:flex;gap:8px">
             <button class="btn btn-primary" onclick="openAddWorker()">+ Add Worker</button>
@@ -251,6 +269,45 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
         <div class="modal-actions">
             <button class="btn" onclick="closeWorkerModal()">Cancel</button>
             <button class="btn btn-primary" id="worker-save-btn" onclick="saveWorker()">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Reveal Token Modal -->
+<div class="modal-overlay" id="reveal-token-modal">
+    <div class="modal">
+        <h2>Reveal Worker Token</h2>
+        <p style="color:#8b949e;font-size:13px;margin-bottom:12px">Confirm your password to view the full auth token.</p>
+        <div id="reveal-token-error" class="error-msg"></div>
+        <input type="hidden" id="reveal-token-worker-id">
+        <div id="reveal-token-password-section">
+            <label>Password <input type="password" id="reveal-token-password" autocomplete="current-password" onkeydown="if(event.key==='Enter')confirmRevealToken()"></label>
+        </div>
+        <div id="reveal-token-result"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeRevealTokenModal()">Close</button>
+            <button class="btn btn-primary" id="reveal-token-confirm-btn" onclick="confirmRevealToken()">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Worker Modal -->
+<div class="modal-overlay" id="edit-worker-modal">
+    <div class="modal">
+        <h2>Edit Worker</h2>
+        <div id="edit-worker-error" class="error-msg"></div>
+        <input type="hidden" id="edit-worker-id">
+        <p id="edit-worker-name" style="color:#f0f6fc;font-size:15px;font-weight:600;margin-bottom:4px"></p>
+        <label>Max Resource Tier
+            <select id="edit-worker-tier">
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+            </select>
+        </label>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeEditWorkerModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveWorkerEdit()">Save</button>
         </div>
     </div>
 </div>
@@ -376,18 +433,19 @@ async function doLogout() {
 }
 
 // --- Tab switching ---
-function showTab(name) {
+function showTab(name, push = true) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     document.querySelectorAll('nav button').forEach(b => {
         if (b.textContent.toLowerCase().includes(name)) b.classList.add('active');
     });
+    if (push) history.pushState({ tab: name }, '', '#' + name);
     if (name === 'matrix') loadMatrix();
     if (name === 'projects') loadProjects();
     if (name === 'workers') loadWorkers();
     if (name === 'trend') loadTrend();
-    if (name === 'admin') loadAdminWorkers();
+    if (name === 'admin') { loadAdminWorkers(); loadKilnHash(); }
 }
 
 // --- Matrix ---
@@ -593,7 +651,8 @@ async function loadWorkers() {
             const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
             html += '<div class="worker-card">';
             html += '<h3>' + escHtml(w.name) + ' <span class="' + (online ? 'online' : 'offline') + '">(' + (online ? 'online' : 'offline') + ')</span></h3>';
-            html += '<div class="detail">' + escHtml(w.arch) + ' / ' + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
+            const distroStr = w.distro ? escHtml(w.distro) + ' ' : '';
+            html += '<div class="detail">' + escHtml(w.arch) + ' / ' + distroStr + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
             html += '<div class="detail">' + escHtml(w.cpu_model) + ' &middot; ' + w.cores + ' cores &middot; ' + w.ram_mb + ' MB</div>';
             html += '<div class="detail">Tier: ' + escHtml(w.resource_tier_max) + ' &middot; Last seen: ' + timeAgo(w.last_seen) + '</div>';
             if (w.current_job) html += '<div class="detail">Building: <span class="job-badge">' + escHtml(w.current_job) + '</span></div>';
@@ -607,7 +666,6 @@ async function loadWorkers() {
 }
 
 // --- Admin: Worker Management ---
-let revealedTokens = {};
 
 async function loadAdminWorkers() {
     try {
@@ -619,23 +677,21 @@ async function loadAdminWorkers() {
         let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Arch/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
         for (const w of workers) {
             const online = (Date.now() - new Date(w.last_seen).getTime()) < 5 * 60 * 1000;
-            const tokenId = 'token-' + w.id;
             html += '<tr>';
             html += '<td>' + escHtml(w.name) + '</td>';
             html += '<td>' + escHtml(w.resource_tier_max) + '</td>';
-            html += '<td>' + escHtml(w.arch || '-') + ' / ' + escHtml(w.os || '-') + ' ' + escHtml(w.os_version || '') + '</td>';
+            const distro = w.distro ? escHtml(w.distro) + ' ' : '';
+            html += '<td>' + escHtml(w.arch || '-') + ' / ' + distro + escHtml(w.os || '-') + ' ' + escHtml(w.os_version || '') + '</td>';
             html += '<td>' + timeAgo(w.last_seen) + '</td>';
             html += '<td>' + (w.current_job ? '<span class="job-badge">' + escHtml(w.current_job) + '</span>' : (online ? '<span class="enabled-badge">online</span>' : '<span class="disabled-badge">offline</span>')) + '</td>';
             html += '<td class="token-cell">';
-            if (revealedTokens[w.id]) {
-                html += '<code>' + escHtml(w.auth_token) + '</code> ';
-                html += '<button class="btn" onclick="hideToken(' + w.id + ')">Hide</button>';
-            } else {
-                html += '<span class="token-masked">' + w.auth_token.substring(0, 6) + '...</span> ';
-                html += '<button class="btn" onclick="revealToken(' + w.id + ')">Show</button>';
-            }
+            html += '<span class="token-masked">' + escHtml(w.auth_token_prefix) + '...</span> ';
+            html += '<button class="btn" onclick="openRevealToken(' + w.id + ')">Show</button>';
             html += '</td>';
-            html += '<td><button class="btn btn-danger" onclick="deleteWorker(' + w.id + ',\'' + escHtml(w.name) + '\')">Delete</button></td>';
+            html += '<td>';
+            html += '<button class="btn" onclick="openEditWorker(' + w.id + ',\'' + escHtml(w.name) + '\',\'' + escHtml(w.resource_tier_max) + '\')">Edit</button>';
+            html += '<button class="btn btn-danger" onclick="deleteWorker(' + w.id + ',\'' + escHtml(w.name) + '\')">Delete</button>';
+            html += '</td>';
             html += '</tr>';
         }
         html += '</tbody></table>';
@@ -645,14 +701,51 @@ async function loadAdminWorkers() {
     }
 }
 
-function revealToken(id) {
-    revealedTokens[id] = true;
-    loadAdminWorkers();
+function openRevealToken(id) {
+    document.getElementById('reveal-token-worker-id').value = id;
+    document.getElementById('reveal-token-password').value = '';
+    document.getElementById('reveal-token-error').textContent = '';
+    document.getElementById('reveal-token-result').innerHTML = '';
+    document.getElementById('reveal-token-password-section').style.display = '';
+    document.getElementById('reveal-token-confirm-btn').style.display = '';
+    document.getElementById('reveal-token-modal').classList.add('active');
+    document.getElementById('reveal-token-password').focus();
 }
 
-function hideToken(id) {
-    delete revealedTokens[id];
-    loadAdminWorkers();
+function closeRevealTokenModal() {
+    document.getElementById('reveal-token-modal').classList.remove('active');
+}
+
+async function confirmRevealToken() {
+    const id = document.getElementById('reveal-token-worker-id').value;
+    const password = document.getElementById('reveal-token-password').value;
+    if (!password) {
+        document.getElementById('reveal-token-error').textContent = 'Password required';
+        return;
+    }
+    try {
+        const res = await fetch(API + '/api/v1/admin/workers/' + id + '/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        if (!res.ok) {
+            document.getElementById('reveal-token-error').textContent = (await res.text()) || 'Failed';
+            return;
+        }
+        const result = JSON.parse(await res.text());
+        document.getElementById('reveal-token-error').textContent = '';
+        document.getElementById('reveal-token-password-section').style.display = 'none';
+        document.getElementById('reveal-token-confirm-btn').style.display = 'none';
+        document.getElementById('reveal-token-result').innerHTML =
+            '<div class="token-display" style="margin-top:12px">' +
+            '<div style="color:#f0f6fc;font-weight:600;margin-bottom:6px">Auth token:</div>' +
+            '<code>' + escHtml(result.auth_token) + '</code>' +
+            '<div style="margin-top:8px"><button class="btn" onclick="copyToken(\'' + escHtml(result.auth_token) + '\')">Copy</button></div>' +
+            '</div>';
+    } catch(e) {
+        document.getElementById('reveal-token-error').textContent = e.message;
+    }
 }
 
 function openAddWorker() {
@@ -720,6 +813,39 @@ async function deleteWorker(id, name) {
     loadAdminWorkers();
 }
 
+function openEditWorker(id, name, tier) {
+    document.getElementById('edit-worker-error').textContent = '';
+    document.getElementById('edit-worker-id').value = id;
+    document.getElementById('edit-worker-name').textContent = name;
+    document.getElementById('edit-worker-tier').value = tier;
+    document.getElementById('edit-worker-modal').classList.add('active');
+}
+
+function closeEditWorkerModal() {
+    document.getElementById('edit-worker-modal').classList.remove('active');
+}
+
+async function saveWorkerEdit() {
+    const id = document.getElementById('edit-worker-id').value;
+    const tier = document.getElementById('edit-worker-tier').value;
+    try {
+        const res = await fetch(API + '/api/v1/admin/workers/' + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resource_tier_max: tier })
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            document.getElementById('edit-worker-error').textContent = text || 'Failed to update worker';
+            return;
+        }
+        closeEditWorkerModal();
+        loadAdminWorkers();
+    } catch(e) {
+        document.getElementById('edit-worker-error').textContent = e.message;
+    }
+}
+
 async function generateInvite() {
     try {
         const res = await fetch(API + '/api/v1/auth/invite', { method: 'POST' });
@@ -739,24 +865,65 @@ async function generateInvite() {
     }
 }
 
+// --- Kiln hash ---
+async function loadKilnHash() {
+    try {
+        const r = await fetchJson(API + '/api/v1/admin/kiln-hash');
+        document.getElementById('current-kiln-hash').textContent = r.git_hash || '(not set)';
+    } catch(e) {
+        document.getElementById('current-kiln-hash').textContent = '(error)';
+    }
+}
+
+async function setKilnHash() {
+    const hash = document.getElementById('kiln-hash-input').value.trim();
+    const errEl = document.getElementById('kiln-hash-error');
+    errEl.textContent = '';
+    if (!hash) { errEl.textContent = 'Hash required'; return; }
+    try {
+        const res = await fetch(API + '/api/v1/admin/kiln-hash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ git_hash: hash })
+        });
+        if (!res.ok) { errEl.textContent = (await res.text()) || 'Failed'; return; }
+        document.getElementById('kiln-hash-input').value = '';
+        await loadKilnHash();
+    } catch(e) {
+        errEl.textContent = e.message;
+    }
+}
+
 // --- History ---
-async function showHistory(projectId, name) {
-    document.getElementById('history-title').textContent = 'Build History: ' + name;
-    showTab('history');
+async function showHistory(projectId, name, push = true) {
+    document.getElementById('history-title').textContent = name ? 'Build History: ' + name : 'Build History';
+    if (push) history.pushState({ tab: 'history', projectId, projectName: name }, '', '#history/' + projectId);
+    showTab('history', false);
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
     try {
         const results = await fetchJson(API + '/api/v1/dashboard/project/' + projectId + '/history');
+        if (results.length && !name) {
+            const n = results[0].project_name;
+            document.getElementById('history-title').textContent = 'Build History: ' + n;
+            history.replaceState({ tab: 'history', projectId, projectName: n }, '');
+        }
         if (!results.length) {
             document.getElementById('history-container').innerHTML = '<p style="color:#8b949e">No builds yet.</p>';
             return;
         }
-        let html = '<table class="history-table"><thead><tr><th>Kiln Hash</th><th>Project Commit</th><th>Worker</th><th>Compiler</th><th>Status</th><th>CMake Fallback</th><th>Duration</th><th>Finished</th></tr></thead><tbody>';
+        let html = '<table class="history-table"><thead><tr><th>Kiln Hash</th><th>Project Commit</th><th>Worker</th><th>Compiler</th><th>Status</th><th>CMake Fallback</th><th>Duration</th><th>Finished</th><th>Logs</th></tr></thead><tbody>';
         for (const b of results) {
             const statusCls = b.status === 'pass' ? 'status-pass' :
                               (b.cmake_fallback_status === 'pass' ? 'status-fail' : 'status-both-fail');
             const statusLabel = b.status === 'pass' ? 'pass' :
                                 (b.cmake_fallback_status === 'pass' ? 'KILN BUG' :
                                  (b.cmake_fallback_status ? 'both fail' : b.status));
+            let logLinks = '';
+            if (b.has_log)
+                logLinks += '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/log" download>Build</a>';
+            if (b.has_cmake_log)
+                logLinks += (logLinks ? ' ' : '') +
+                    '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/cmake-log" download>CMake</a>';
             html += '<tr>';
             html += '<td><code>' + escHtml(b.kiln_hash.substring(0, 8)) + '</code></td>';
             html += '<td><code>' + escHtml(b.project_commit.substring(0, 8)) + '</code></td>';
@@ -766,6 +933,7 @@ async function showHistory(projectId, name) {
             html += '<td>' + (b.cmake_fallback_status || '-') + (b.cmake_duration_seconds ? ' (' + b.cmake_duration_seconds + 's)' : '') + '</td>';
             html += '<td>' + b.duration_seconds + 's</td>';
             html += '<td>' + timeAgo(b.finished_at) + '</td>';
+            html += '<td>' + (logLinks || '-') + '</td>';
             html += '</tr>';
         }
         html += '</tbody></table>';
@@ -850,6 +1018,17 @@ async function loadTrend() {
     }
 }
 
+// --- History-based routing ---
+window.addEventListener('popstate', e => {
+    const state = e.state;
+    if (!state || !state.tab) { showTab('matrix', false); return; }
+    if (state.tab === 'history') {
+        showHistory(state.projectId, state.projectName || '', false);
+    } else {
+        showTab(state.tab, false);
+    }
+});
+
 // --- Initial load ---
 async function init() {
     await checkAuth();
@@ -862,7 +1041,23 @@ async function init() {
         openAuthModal('setup');
     }
 
-    loadMatrix();
+    const hash = window.location.hash.slice(1);
+    if (hash.startsWith('history/')) {
+        const projectId = parseInt(hash.slice(8));
+        if (projectId) {
+            history.replaceState({ tab: 'history', projectId, projectName: '' }, '');
+            showHistory(projectId, '', false);
+        } else {
+            history.replaceState({ tab: 'matrix' }, '', '#matrix');
+            showTab('matrix', false);
+        }
+    } else if (['matrix', 'projects', 'workers', 'trend', 'admin'].includes(hash)) {
+        history.replaceState({ tab: hash }, '');
+        showTab(hash, false);
+    } else {
+        history.replaceState({ tab: 'matrix' }, '', '#matrix');
+        showTab('matrix', false);
+    }
 }
 
 init();

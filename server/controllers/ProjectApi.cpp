@@ -120,18 +120,9 @@ Task<HttpResponsePtr> ProjectApi::trigger(HttpRequestPtr req, int64_t id) {
     if (!is_admin(req))
         co_return error_response(k401Unauthorized);
 
-    // Backdate the most recent build result so the project escapes cooldown
     auto db = app().getDbClient();
-    auto r = co_await db->execSqlCoro(
-        "UPDATE build_results SET finished_at = '1970-01-01' "
-        "WHERE id = (SELECT id FROM build_results WHERE project_id=$1 "
-        "ORDER BY finished_at DESC LIMIT 1) "
-        "RETURNING id",
-        id);
-
-    // Also clear any active job so it's not blocked
     co_await db->execSqlCoro(
-        "DELETE FROM active_jobs WHERE project_id=$1",
+        "UPDATE projects SET forced_rebuild_after = now() WHERE id=$1",
         id);
 
     co_return error_response(k200OK);

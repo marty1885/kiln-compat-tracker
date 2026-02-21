@@ -138,6 +138,19 @@ inline const std::vector<Migration> &migrations() {
             "ALTER TABLE active_jobs ADD CONSTRAINT active_jobs_worker_id_fkey "
             "  FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE",
         }},
+        {4, {
+            // Distro tracking and per-platform scheduling
+            "ALTER TABLE workers ADD COLUMN distro TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE workers ADD COLUMN compiler TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE workers ADD COLUMN compiler_version TEXT NOT NULL DEFAULT ''",
+        }},
+        {5, {
+            // Replace destructive trigger (backdating finished_at) with a
+            // non-destructive forced_rebuild_after timestamp. The scheduler
+            // only counts a recent build as suppressing a new one if it also
+            // occurred after this timestamp.
+            "ALTER TABLE projects ADD COLUMN forced_rebuild_after TIMESTAMPTZ",
+        }},
         // Future migrations go here:
     };
     return m;

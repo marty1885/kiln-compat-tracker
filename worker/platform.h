@@ -8,6 +8,7 @@ struct SystemInfo {
     std::string arch;
     std::string os;
     std::string os_version;
+    std::string distro;
     std::string cpu_model;
     int cores{};
     int ram_mb{};
