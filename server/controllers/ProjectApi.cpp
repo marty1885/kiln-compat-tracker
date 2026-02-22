@@ -50,6 +50,11 @@ Task<HttpResponsePtr> ProjectApi::create(HttpRequestPtr req) {
     if (auto err = glz::read_json(pc, body); err)
         co_return error_response(k400BadRequest, glz::format_error(err, body));
 
+    if (pc.name.empty())
+        co_return error_response(k400BadRequest, "name is required");
+    if (pc.repo_url.empty())
+        co_return error_response(k400BadRequest, "repo_url is required");
+
     auto db = app().getDbClient();
     auto binder = *db <<
         "INSERT INTO projects (name, repo_url, branch, pinned_commit, extra_cmake_args, "
@@ -76,6 +81,11 @@ Task<HttpResponsePtr> ProjectApi::update(HttpRequestPtr req, int64_t id) {
     auto body = std::string(req->body());
     if (auto err = glz::read_json(pc, body); err)
         co_return error_response(k400BadRequest, glz::format_error(err, body));
+
+    if (pc.name.empty())
+        co_return error_response(k400BadRequest, "name is required");
+    if (pc.repo_url.empty())
+        co_return error_response(k400BadRequest, "repo_url is required");
 
     auto db = app().getDbClient();
     auto binder = *db <<

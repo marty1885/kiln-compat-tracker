@@ -634,16 +634,30 @@ function autoFillProjectName() {
     const nameField = document.getElementById('proj-name');
     if (nameField.value.trim()) return; // don't overwrite user-entered name
     const url = document.getElementById('proj-url').value.trim();
+    const repoNameRe = /^[a-zA-Z0-9._-]+$/;
+
+    // try SSH-style: git@host:owner/project.git
+    const sshMatch = url.match(/^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}:([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (sshMatch) {
+        const [, owner, project] = sshMatch;
+        if (repoNameRe.test(owner) && repoNameRe.test(project))
+            nameField.value = owner + '/' + project;
+        return;
+    }
+
+    // try HTTP(S) URL
     try {
         const parsed = new URL(url);
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return;
+        if (!parsed.hostname.includes('.')) return;
         const segments = parsed.pathname.split('/').filter(Boolean);
-        // expect at least owner/project
-        if (segments.length >= 2) {
-            let project = segments[1];
-            // strip .git suffix
-            if (project.endsWith('.git')) project = project.slice(0, -4);
-            if (project) nameField.value = segments[0] + '/' + project;
-        }
+        if (segments.length < 2) return;
+        const owner = segments[0];
+        let project = segments[1];
+        if (project.endsWith('.git')) project = project.slice(0, -4);
+        if (!owner || !project) return;
+        if (!repoNameRe.test(owner) || !repoNameRe.test(project)) return;
+        nameField.value = owner + '/' + project;
     } catch(e) {
         // not a valid URL yet, ignore
     }
