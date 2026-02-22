@@ -138,11 +138,12 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
 
         // Run tests via kiln's test subcommand (builds with BUILD_TESTING=ON and runs)
         if (job.run_tests) {
-            std::string test_cmd = kiln_binary + " -C " + project_dir + " --config release test";
+            std::string test_cmd = kiln_binary + " -C " + project_dir + " --config release";
             if (config.max_jobs > 0)
                 test_cmd += " -j" + std::to_string(config.max_jobs);
             if (job.extra_cmake_args && !job.extra_cmake_args->empty())
                 test_cmd += " " + *job.extra_cmake_args;
+            test_cmd += " test";
 
             std::cout << "  Running tests: " << test_cmd << "\n";
             auto test_result = run_command(test_cmd);
