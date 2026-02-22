@@ -105,19 +105,17 @@ Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
         "    SELECT 1 FROM build_results br "
         "    LEFT JOIN kiln_commits kc ON kc.id = br.kiln_commit_id "
         "    JOIN config cfg ON cfg.key = 'current_kiln_hash' "
-        "    JOIN workers bw ON bw.id = br.worker_id "
         "    WHERE br.project_id = p.id "
         "      AND br.finished_at > COALESCE(p.forced_rebuild_after, '-infinity'::timestamptz)"
         "      AND (cfg.value = '' OR kc.git_hash = cfg.value)"
-        "      AND bw.arch = w.arch AND bw.os = w.os "
-        "      AND bw.distro = w.distro AND bw.compiler = w.compiler"
+        "      AND br.arch = w.arch AND br.os = w.os "
+        "      AND br.distro = w.distro AND br.compiler = w.compiler"
         "  ) "
         "ORDER BY ("
         "  SELECT MAX(br.finished_at) FROM build_results br "
-        "  JOIN workers bw ON bw.id = br.worker_id "
         "  WHERE br.project_id = p.id "
-        "    AND bw.arch = w.arch AND bw.os = w.os "
-        "    AND bw.distro = w.distro AND bw.compiler = w.compiler"
+        "    AND br.arch = w.arch AND br.os = w.os "
+        "    AND br.distro = w.distro AND br.compiler = w.compiler"
         ") ASC NULLS FIRST, "
         "p.resource_tier DESC "
         "LIMIT 1",
@@ -210,9 +208,10 @@ Task<HttpResponsePtr> WorkerApi::result(HttpRequestPtr req) {
 
     auto db = app().getDbClient();
 
-    // Look up worker + active job
+    // Look up worker + active job (also grab platform info to denormalize)
     auto lookup = co_await db->execSqlCoro(
-        "SELECT w.id as worker_id, aj.project_id, aj.kiln_commit_id, p.name as project_name "
+        "SELECT w.id as worker_id, w.arch, w.os, w.distro, "
+        "aj.project_id, aj.kiln_commit_id, p.name as project_name "
         "FROM workers w "
         "JOIN active_jobs aj ON aj.id=$1 AND aj.worker_id=w.id "
         "JOIN projects p ON p.id = aj.project_id "
@@ -225,6 +224,9 @@ Task<HttpResponsePtr> WorkerApi::result(HttpRequestPtr req) {
     auto workerId = lookup[0]["worker_id"].as<int64_t>();
     auto projectId = lookup[0]["project_id"].as<int64_t>();
     auto projectName = lookup[0]["project_name"].as<std::string>();
+    auto workerArch = lookup[0]["arch"].as<std::string>();
+    auto workerOs = lookup[0]["os"].as<std::string>();
+    auto workerDistro = lookup[0]["distro"].as<std::string>();
 
     // Resolve kiln_commit_id: prefer the hash reported by the worker (authoritative),
     // fall back to whatever was set on the active_job at poll time.
@@ -245,16 +247,18 @@ Task<HttpResponsePtr> WorkerApi::result(HttpRequestPtr req) {
     auto binder = *db <<
         "INSERT INTO build_results "
         "(project_id, kiln_commit_id, project_commit, worker_id, "
+        "arch, os, distro, "
         "compiler, compiler_version, status, test_status, test_duration_seconds, "
         "cmake_fallback_status, cmake_version, duration_seconds, "
         "cmake_duration_seconds, started_at, finished_at) "
-        "VALUES ($1, $2, $3, $4, $5, $6, CAST($7 AS build_status), "
-        "CAST($8 AS build_status), $9, CAST($10 AS build_status), $11, $12, $13, "
-        "now() - make_interval(secs => $14), now()) RETURNING id";
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CAST($10 AS build_status), "
+        "CAST($11 AS build_status), $12, CAST($13 AS build_status), $14, $15, $16, "
+        "now() - make_interval(secs => $17), now()) RETURNING id";
 
     binder << projectId;
     if (kilnCommitId) binder << *kilnCommitId; else binder << nullptr;
     binder << rr.project_commit << workerId
+           << workerArch << workerOs << workerDistro
            << rr.compiler << rr.compiler_version << rr.status;
     if (rr.test_status) binder << *rr.test_status; else binder << nullptr;
     if (rr.test_duration_seconds) binder << *rr.test_duration_seconds; else binder << nullptr;

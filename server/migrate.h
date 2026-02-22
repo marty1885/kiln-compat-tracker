@@ -183,6 +183,20 @@ inline const std::vector<Migration> &migrations() {
             // Worker-reported max build parallelism (0 = use nproc).
             "ALTER TABLE workers ADD COLUMN max_jobs INT NOT NULL DEFAULT 0",
         }},
+        {11, {
+            // Denormalize platform data onto build_results so that worker
+            // deletion and compiler upgrades don't corrupt the build tuple.
+            "ALTER TABLE build_results ADD COLUMN IF NOT EXISTS arch TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE build_results ADD COLUMN IF NOT EXISTS os TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE build_results ADD COLUMN IF NOT EXISTS distro TEXT NOT NULL DEFAULT ''",
+
+            // Backfill from workers where the worker still exists
+            "UPDATE build_results br SET arch = w.arch, os = w.os, distro = w.distro "
+            "FROM workers w WHERE br.worker_id = w.id AND br.arch = ''",
+
+            "CREATE INDEX IF NOT EXISTS idx_build_results_platform "
+            "ON build_results(project_id, arch, os, distro, compiler)",
+        }},
         // Future migrations go here:
     };
     return m;

@@ -13,22 +13,33 @@ namespace kiln {
 Task<HttpResponsePtr> DashboardApi::matrix(HttpRequestPtr req) {
     auto db = app().getDbClient();
 
+    // Optional time filter: ?days=N restricts to results within the last N days
+    auto daysParam = req->getParameter("days");
+    std::string daysClause;
+    int days = 0;
+    if (!daysParam.empty()) {
+        try { days = std::stoi(daysParam); } catch (...) {}
+        if (days >= 1) {
+            if (days > 365) days = 365;
+            daysClause = " AND br.finished_at > now() - interval '" + std::to_string(days) + " days'";
+        }
+    }
+
     std::vector<MatrixCell> cells;
 
     // Latest build result per project per platform (arch-os-distro-compiler)
     auto builds = co_await db->execSqlCoro(
         "SELECT DISTINCT ON (br.project_id, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler) "
+        "br.arch || '-' || br.os || '-' || br.distro || '-' || br.compiler) "
         "br.project_id, p.name AS project_name, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler AS platform, "
+        "br.arch || '-' || br.os || '-' || br.distro || '-' || br.compiler AS platform, "
         "br.status::text, br.cmake_fallback_status::text, "
         "br.finished_at::text, br.id AS build_result_id "
         "FROM build_results br "
         "JOIN projects p ON p.id = br.project_id "
-        "LEFT JOIN workers w ON w.id = br.worker_id "
-        "WHERE p.enabled = true "
+        "WHERE p.enabled = true" + daysClause + " "
         "ORDER BY br.project_id, "
-        "COALESCE(w.arch,'') || '-' || COALESCE(w.os,'') || '-' || COALESCE(w.distro,'') || '-' || br.compiler, "
+        "br.arch || '-' || br.os || '-' || br.distro || '-' || br.compiler, "
         "br.finished_at DESC");
 
     for (const auto &row : builds) {

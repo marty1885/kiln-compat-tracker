@@ -58,12 +58,16 @@ CREATE TABLE workers (
 );
 
 -- Migration 3: worker_id nullable, ON DELETE SET NULL
+-- Migration 11: arch/os/distro denormalized from workers for stable platform tuples
 CREATE TABLE build_results (
     id BIGSERIAL PRIMARY KEY,
     project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     kiln_commit_id BIGINT REFERENCES kiln_commits(id),
     project_commit TEXT NOT NULL DEFAULT '',
     worker_id BIGINT REFERENCES workers(id) ON DELETE SET NULL,
+    arch TEXT NOT NULL DEFAULT '',
+    os TEXT NOT NULL DEFAULT '',
+    distro TEXT NOT NULL DEFAULT '',
     compiler TEXT NOT NULL DEFAULT '',
     compiler_version TEXT NOT NULL DEFAULT '',
     status build_status NOT NULL,
@@ -116,6 +120,7 @@ CREATE TABLE invite_tokens (
 
 CREATE INDEX idx_build_results_project ON build_results(project_id, finished_at DESC);
 CREATE INDEX idx_build_results_status ON build_results(project_id, status);
+CREATE INDEX idx_build_results_platform ON build_results(project_id, arch, os, distro, compiler);
 CREATE INDEX idx_active_jobs_project ON active_jobs(project_id);
 CREATE INDEX idx_active_jobs_heartbeat ON active_jobs(heartbeat_at);
 CREATE INDEX idx_workers_token ON workers(auth_token);
