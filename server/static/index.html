@@ -232,7 +232,7 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
         <h2 id="modal-title">Add Project</h2>
         <input type="hidden" id="edit-project-id">
         <label>Name <input type="text" id="proj-name" placeholder="e.g. sfml"></label>
-        <label>Git Repo URL <input type="text" id="proj-url" placeholder="https://github.com/..."></label>
+        <label>Git Repo URL <input type="text" id="proj-url" placeholder="https://github.com/..." oninput="autoFillProjectName()"></label>
         <label>Branch <input type="text" id="proj-branch" value="HEAD"></label>
         <label>Pinned Commit (optional) <input type="text" id="proj-pinned"></label>
         <label>Extra CMake Args (optional) <input type="text" id="proj-extra-cmake-args" placeholder="-DFOO=BAR -DBAZ=ON"></label>
@@ -628,6 +628,25 @@ async function editProject(id) {
     document.getElementById('proj-cooldown').value = p.cooldown_minutes;
     document.getElementById('proj-tests').checked = p.run_tests;
     document.getElementById('project-modal').classList.add('active');
+}
+
+function autoFillProjectName() {
+    const nameField = document.getElementById('proj-name');
+    if (nameField.value.trim()) return; // don't overwrite user-entered name
+    const url = document.getElementById('proj-url').value.trim();
+    try {
+        const parsed = new URL(url);
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        // expect at least owner/project
+        if (segments.length >= 2) {
+            let project = segments[1];
+            // strip .git suffix
+            if (project.endsWith('.git')) project = project.slice(0, -4);
+            if (project) nameField.value = project;
+        }
+    } catch(e) {
+        // not a valid URL yet, ignore
+    }
 }
 
 function closeModal() {
