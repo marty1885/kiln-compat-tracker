@@ -162,6 +162,7 @@ Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
 
     PollResponse poll{
         .job_id = newJobId,
+        .project_id = projectId,
         .project_name = row["name"].as<std::string>(),
         .repo_url = row["repo_url"].as<std::string>(),
         .branch = row["branch"].as<std::string>(),

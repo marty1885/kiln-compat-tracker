@@ -13,40 +13,65 @@ static std::string trim_newlines(std::string s) {
     return s;
 }
 
+// Extract repo name from URL: "https://github.com/foo/bar.git" -> "bar"
+static std::string repo_name_from_url(const std::string &url) {
+    auto slash = url.rfind('/');
+    auto name = (slash != std::string::npos) ? url.substr(slash + 1) : url;
+    if (name.size() > 4 && name.substr(name.size() - 4) == ".git")
+        name = name.substr(0, name.size() - 4);
+    if (name.empty())
+        name = "repo";
+    return name;
+}
+
+fs::path project_dir_for(const WorkerConfig &config, const PollResponse &job) {
+    return fs::path(config.project_cache_dir())
+         / std::to_string(job.project_id)
+         / repo_name_from_url(job.repo_url);
+}
+
 std::string prepare_project(const WorkerConfig &config, const PollResponse &job) {
-    auto project_dir = fs::path(config.project_cache_dir()) / job.project_name;
+    auto project_dir = project_dir_for(config, job);
+    auto dir = project_dir.string();
 
     if (fs::exists(project_dir / ".git")) {
         // Fetch updates
         std::cout << "  Fetching " << job.project_name << "...\n";
-        auto r = run_command("git -C " + project_dir.string() + " fetch --all --prune");
+        auto r = run_command("git -C " + dir + " fetch --all --prune");
         if (r.exit_code != 0)
             std::cerr << "  Warning: git fetch failed: " << r.output << "\n";
     } else {
-        // Fresh clone
+        // Fresh shallow clone
         std::cout << "  Cloning " << job.repo_url << "...\n";
         fs::create_directories(project_dir.parent_path());
-        auto r = run_command("git clone " + job.repo_url + " " + project_dir.string());
+        auto r = run_command("git clone --depth 1 " + job.repo_url + " " + dir);
         if (r.exit_code != 0)
             throw std::runtime_error("git clone failed: " + r.output);
     }
 
     // Checkout the right ref
     if (job.pinned_commit) {
-        run_command("git -C " + project_dir.string() + " checkout " + *job.pinned_commit);
+        // Shallow clone may not have the commit — fetch it specifically
+        auto r = run_command("git -C " + dir + " cat-file -t " + *job.pinned_commit + " 2>/dev/null");
+        if (r.exit_code != 0) {
+            r = run_command("git -C " + dir + " fetch origin " + *job.pinned_commit + " --depth 1");
+            if (r.exit_code != 0)
+                throw std::runtime_error("Failed to fetch pinned commit " + *job.pinned_commit + ": " + r.output);
+        }
+        run_command("git -C " + dir + " checkout " + *job.pinned_commit);
     } else if (job.branch != "HEAD") {
-        run_command("git -C " + project_dir.string() + " checkout " + job.branch);
-        run_command("git -C " + project_dir.string() + " pull --ff-only");
+        run_command("git -C " + dir + " checkout " + job.branch);
+        run_command("git -C " + dir + " pull --ff-only");
     } else {
         // Default branch
-        run_command("git -C " + project_dir.string() + " checkout "
-                    "$(git -C " + project_dir.string() + " symbolic-ref refs/remotes/origin/HEAD "
+        run_command("git -C " + dir + " checkout "
+                    "$(git -C " + dir + " symbolic-ref refs/remotes/origin/HEAD "
                     "| sed 's@^refs/remotes/origin/@@')");
-        run_command("git -C " + project_dir.string() + " pull --ff-only");
+        run_command("git -C " + dir + " pull --ff-only");
     }
 
     // Get actual HEAD hash
-    auto hash_result = run_command("git -C " + project_dir.string() + " rev-parse HEAD");
+    auto hash_result = run_command("git -C " + dir + " rev-parse HEAD");
     return trim_newlines(hash_result.output);
 }
 
@@ -58,7 +83,7 @@ std::string ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_
     if (!fs::exists(kiln_dir / ".git")) {
         std::cout << "  Cloning kiln...\n";
         fs::create_directories(kiln_dir.parent_path());
-        auto r = run_command("git clone git@github.com:marty1885/kiln.git " + kiln_dir.string());
+        auto r = run_command("git clone --depth 1 git@github.com:marty1885/kiln.git " + kiln_dir.string());
         if (r.exit_code != 0)
             throw std::runtime_error("Failed to clone kiln: " + r.output);
     }

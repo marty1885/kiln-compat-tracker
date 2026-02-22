@@ -120,8 +120,7 @@ private:
         try {
             actual_kiln_hash = ensure_kiln(config_, job.kiln_git_hash);
             project_commit = prepare_project(config_, job);
-            project_dir = (std::filesystem::path(config_.project_cache_dir()) /
-                           job.project_name).string();
+            project_dir = project_dir_for(config_, job).string();
         } catch (const std::exception &e) {
             prep_failed = true;
             prep_error = e.what();

@@ -3,10 +3,14 @@
 #include "common/protocol.h"
 #include "worker/platform.h"
 #include "worker/config.h"
+#include <filesystem>
 #include <string>
 #include <optional>
 
 namespace kiln {
+
+// Get the cache directory for a project: <cache_dir>/<project_id>/<repo_name>
+std::filesystem::path project_dir_for(const WorkerConfig &config, const PollResponse &job);
 
 struct BuildResult {
     std::string status;           // pass, fail, timeout, error

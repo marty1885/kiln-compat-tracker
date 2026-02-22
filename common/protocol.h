@@ -25,6 +25,7 @@ struct HeartbeatRequest {
 
 struct PollResponse {
     int64_t job_id{};
+    int64_t project_id{};
     std::string project_name;
     std::string repo_url;
     std::string branch;

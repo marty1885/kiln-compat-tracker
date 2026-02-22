@@ -21,7 +21,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
         "EXTRACT(EPOCH FROM now() - w.last_seen)::bigint AS age_seconds, "
         "p.name AS current_job "
         "FROM workers w "
-        "LEFT JOIN active_jobs aj ON aj.worker_id = w.id "
+        "LEFT JOIN active_jobs aj ON aj.worker_id = w.id AND aj.reaped_at IS NULL "
         "LEFT JOIN projects p ON p.id = aj.project_id "
         "ORDER BY w.name");
 
