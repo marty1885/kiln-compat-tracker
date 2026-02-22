@@ -188,8 +188,9 @@ struct WorkerCreateRequest {
 };
 
 struct WorkerUpdateRequest {
-    std::string resource_tier_max;
-    std::string dep_level_max;
+    std::optional<std::string> name;
+    std::optional<std::string> resource_tier_max;
+    std::optional<std::string> dep_level_max;
 };
 
 struct WorkerCreateResponse {

@@ -315,7 +315,9 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
         <h2>Edit Worker</h2>
         <div id="edit-worker-error" class="error-msg"></div>
         <input type="hidden" id="edit-worker-id">
-        <p id="edit-worker-name" style="color:#f0f6fc;font-size:15px;font-weight:600;margin-bottom:4px"></p>
+        <label>Name
+            <input type="text" id="edit-worker-name" required>
+        </label>
         <label>Max Resource Tier
             <select id="edit-worker-tier">
                 <option value="small">Small</option>
@@ -854,7 +856,7 @@ async function deleteWorker(id, name) {
 function openEditWorker(id, name, tier, depLevel) {
     document.getElementById('edit-worker-error').textContent = '';
     document.getElementById('edit-worker-id').value = id;
-    document.getElementById('edit-worker-name').textContent = name;
+    document.getElementById('edit-worker-name').value = name;
     document.getElementById('edit-worker-tier').value = tier;
     document.getElementById('edit-worker-dep-level').value = depLevel || 'base';
     document.getElementById('edit-worker-modal').classList.add('active');
@@ -866,13 +868,18 @@ function closeEditWorkerModal() {
 
 async function saveWorkerEdit() {
     const id = document.getElementById('edit-worker-id').value;
+    const name = document.getElementById('edit-worker-name').value.trim();
     const tier = document.getElementById('edit-worker-tier').value;
     const depLevel = document.getElementById('edit-worker-dep-level').value;
+    if (!name) {
+        document.getElementById('edit-worker-error').textContent = 'Name cannot be empty';
+        return;
+    }
     try {
         const res = await fetch(API + '/api/v1/admin/workers/' + id, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resource_tier_max: tier, dep_level_max: depLevel })
+            body: JSON.stringify({ name, resource_tier_max: tier, dep_level_max: depLevel })
         });
         if (!res.ok) {
             const text = await res.text();

@@ -102,27 +102,59 @@ Task<HttpResponsePtr> WorkerMgmtApi::update(HttpRequestPtr req, int64_t id) {
     if (auto err = glz::read_json(wu, body); err)
         co_return error_response(k400BadRequest, glz::format_error(err, body));
 
-    if (wu.resource_tier_max != "small" &&
-        wu.resource_tier_max != "medium" &&
-        wu.resource_tier_max != "large" &&
-        wu.resource_tier_max != "xlarge")
-        co_return error_response(k400BadRequest, "Invalid resource tier");
+    if (wu.name && wu.name->empty())
+        co_return error_response(k400BadRequest, "Worker name cannot be empty");
 
-    if (wu.dep_level_max != "base" &&
-        wu.dep_level_max != "moderate" &&
-        wu.dep_level_max != "full")
-        co_return error_response(k400BadRequest, "Invalid dep level");
+    if (wu.resource_tier_max) {
+        auto &t = *wu.resource_tier_max;
+        if (t != "small" && t != "medium" && t != "large" && t != "xlarge")
+            co_return error_response(k400BadRequest, "Invalid resource tier");
+    }
+
+    if (wu.dep_level_max) {
+        auto &d = *wu.dep_level_max;
+        if (d != "base" && d != "moderate" && d != "full")
+            co_return error_response(k400BadRequest, "Invalid dep level");
+    }
+
+    // Build SET clauses for provided fields
+    std::vector<std::string> clauses;
+    int param = 2; // $1 is id
+
+    if (wu.name)
+        clauses.push_back("name = $" + std::to_string(param++));
+    if (wu.resource_tier_max)
+        clauses.push_back("resource_tier_max = $" + std::to_string(param++) + "::resource_tier");
+    if (wu.dep_level_max)
+        clauses.push_back("dep_level_max = $" + std::to_string(param++) + "::dep_level");
+
+    if (clauses.empty())
+        co_return error_response(k400BadRequest, "No fields to update");
+
+    std::string sql = "UPDATE workers SET ";
+    for (size_t i = 0; i < clauses.size(); ++i) {
+        if (i > 0) sql += ", ";
+        sql += clauses[i];
+    }
+    sql += " WHERE id = $1 RETURNING id";
 
     auto db = app().getDbClient();
-    auto r = co_await db->execSqlCoro(
-        "UPDATE workers SET resource_tier_max = '" + wu.resource_tier_max + "'::resource_tier, "
-        "dep_level_max = '" + wu.dep_level_max + "'::dep_level "
-        "WHERE id = $1 RETURNING id", id);
+    auto binder = *db << sql;
+    binder << id;
+    if (wu.name)              binder << *wu.name;
+    if (wu.resource_tier_max) binder << *wu.resource_tier_max;
+    if (wu.dep_level_max)     binder << *wu.dep_level_max;
 
-    if (r.empty())
-        co_return error_response(k404NotFound);
+    try {
+        auto r = co_await orm::internal::SqlAwaiter(std::move(binder));
 
-    co_return error_response(k200OK);
+        if (r.empty())
+            co_return error_response(k404NotFound);
+
+        co_return error_response(k200OK);
+    } catch (const DrogonDbException &) {
+        co_return error_response(k409Conflict, "Worker name already exists");
+    }
 }
 
 Task<HttpResponsePtr> WorkerMgmtApi::remove(HttpRequestPtr req, int64_t id) {
