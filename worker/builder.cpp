@@ -88,9 +88,13 @@ std::string ensure_kiln(const WorkerConfig &config, const std::string &kiln_git_
     auto build_dir = kiln_dir / "build";
     fs::create_directories(build_dir);
 
+    std::string ninja_cmd = "ninja -C " + build_dir.string();
+    if (config.max_jobs > 0)
+        ninja_cmd += " -j" + std::to_string(config.max_jobs);
+
     std::string build_cmd = "cmake -S " + kiln_dir.string() + " -B " + build_dir.string() +
                             " -DCMAKE_BUILD_TYPE=Release -G Ninja"
-                            " && ninja -C " + build_dir.string();
+                            " && " + ninja_cmd;
 
     std::cout << "  Building kiln...\n";
     r = run_command(build_cmd);
@@ -112,12 +116,11 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
     auto kiln_binary = (fs::path(config.kiln_source_dir()) / "build" / "kiln").string();
 
     // Determine build command
-    std::string kiln_cmd;
-    if (job.build_command) {
-        kiln_cmd = *job.build_command;
-    } else {
-        kiln_cmd = kiln_binary + " -C " + project_dir + " --config release";
-    }
+    std::string kiln_cmd = kiln_binary + " -C " + project_dir + " --config release";
+    if (config.max_jobs > 0)
+        kiln_cmd += " -j" + std::to_string(config.max_jobs);
+    if (job.extra_cmake_args && !job.extra_cmake_args->empty())
+        kiln_cmd += " " + *job.extra_cmake_args;
 
     // Clean any previous build
     auto build_dir = project_dir + "/build";
@@ -132,6 +135,22 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
 
     if (kiln_result.exit_code == 0) {
         result.status = "pass";
+
+        // Run tests via kiln's test subcommand (builds with BUILD_TESTING=ON and runs)
+        if (job.run_tests) {
+            std::string test_cmd = kiln_binary + " -C " + project_dir + " --config release test";
+            if (config.max_jobs > 0)
+                test_cmd += " -j" + std::to_string(config.max_jobs);
+            if (job.extra_cmake_args && !job.extra_cmake_args->empty())
+                test_cmd += " " + *job.extra_cmake_args;
+
+            std::cout << "  Running tests: " << test_cmd << "\n";
+            auto test_result = run_command(test_cmd);
+            result.test_status = (test_result.exit_code == 0) ? "pass" : "fail";
+            result.test_duration_seconds = test_result.duration_seconds;
+            result.log += "\n\n=== TESTS ===\n" + test_result.output;
+        }
+
         return result;
     }
 
@@ -148,9 +167,18 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
     if (fs::exists(build_dir))
         fs::remove_all(build_dir);
 
-    std::string cmake_cmd = "cmake -S " + project_dir + " -B " + build_dir +
-                            " -DCMAKE_BUILD_TYPE=Release && cmake --build " + build_dir +
-                            " -j$(nproc)";
+    std::string cmake_configure = "cmake -S " + project_dir + " -B " + build_dir +
+                                 " -DCMAKE_BUILD_TYPE=Release";
+    if (job.extra_cmake_args && !job.extra_cmake_args->empty())
+        cmake_configure += " " + *job.extra_cmake_args;
+
+    std::string cmake_build = "cmake --build " + build_dir;
+    if (config.max_jobs > 0)
+        cmake_build += " -j" + std::to_string(config.max_jobs);
+    else
+        cmake_build += " -j$(nproc)";
+
+    std::string cmake_cmd = cmake_configure + " && " + cmake_build;
 
     std::cout << "  Running cmake: " << cmake_cmd << "\n";
     auto cmake_result = run_command(cmake_cmd);

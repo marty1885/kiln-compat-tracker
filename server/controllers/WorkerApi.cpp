@@ -38,10 +38,10 @@ Task<HttpResponsePtr> WorkerApi::heartbeat(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "UPDATE workers SET arch=$1, os=$2, os_version=$3, distro=$4, cpu_model=$5, "
-        "cores=$6, ram_mb=$7, compiler=$8, compiler_version=$9, last_seen=now() "
-        "WHERE auth_token=$10 RETURNING id",
+        "cores=$6, ram_mb=$7, compiler=$8, compiler_version=$9, max_jobs=$10, last_seen=now() "
+        "WHERE auth_token=$11 RETURNING id",
         hb.arch, hb.os, hb.os_version, hb.distro, hb.cpu_model,
-        hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, token);
+        hb.cores, hb.ram_mb, hb.compiler, hb.compiler_version, hb.max_jobs, token);
 
     if (r.empty())
         co_return error_response(k401Unauthorized, "Unknown auth token");
@@ -71,7 +71,7 @@ Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
     // (arch + os + distro + compiler). Different platforms can build in parallel.
     auto projects = co_await db->execSqlCoro(
         "SELECT p.id, p.name, p.repo_url, p.branch, p.pinned_commit, "
-        "p.build_command, p.run_tests "
+        "p.extra_cmake_args, p.run_tests "
         "FROM projects p "
         "CROSS JOIN workers w "
         "WHERE w.id = $1 "
@@ -168,9 +168,9 @@ Task<HttpResponsePtr> WorkerApi::poll(HttpRequestPtr req) {
         .pinned_commit = row["pinned_commit"].isNull()
             ? std::nullopt
             : std::optional{row["pinned_commit"].as<std::string>()},
-        .build_command = row["build_command"].isNull()
+        .extra_cmake_args = row["extra_cmake_args"].isNull()
             ? std::nullopt
-            : std::optional{row["build_command"].as<std::string>()},
+            : std::optional{row["extra_cmake_args"].as<std::string>()},
         .run_tests = row["run_tests"].as<bool>(),
         .kiln_git_hash = kilnHash,
     };

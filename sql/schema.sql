@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 -- Migration 1: initial schema (ids widened to BIGINT in migration 2)
-CREATE TYPE resource_tier AS ENUM ('small', 'medium', 'large');
+CREATE TYPE resource_tier AS ENUM ('small', 'medium', 'large', 'xlarge');
 CREATE TYPE dep_level AS ENUM ('base', 'moderate', 'full');
 CREATE TYPE build_status AS ENUM ('pass', 'fail', 'timeout', 'error');
 
@@ -25,7 +25,7 @@ CREATE TABLE projects (
     repo_url TEXT NOT NULL,
     branch TEXT NOT NULL DEFAULT 'HEAD',
     pinned_commit TEXT,
-    build_command TEXT,
+    extra_cmake_args TEXT,
     run_tests BOOLEAN NOT NULL DEFAULT false,
     test_resource_tier_min resource_tier,
     resource_tier resource_tier NOT NULL DEFAULT 'small',
@@ -49,6 +49,7 @@ CREATE TABLE workers (
     ram_mb INT NOT NULL DEFAULT 0,
     resource_tier_max resource_tier NOT NULL DEFAULT 'small',
     dep_level_max dep_level NOT NULL DEFAULT 'base',
+    max_jobs INT NOT NULL DEFAULT 0,
     last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- Migration 4: distro and compiler for per-platform scheduling
     distro TEXT NOT NULL DEFAULT '',

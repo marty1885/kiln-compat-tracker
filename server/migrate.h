@@ -172,6 +172,17 @@ inline const std::vector<Migration> &migrations() {
             // Empty = any OS (default). Non-empty = comma-separated list.
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS os_filter TEXT NOT NULL DEFAULT ''",
         }},
+        {9, {
+            // Add 'xlarge' resource tier for massive projects (LLVM, PyTorch, etc.)
+            "ALTER TYPE resource_tier ADD VALUE IF NOT EXISTS 'xlarge' AFTER 'large'",
+        }},
+        {10, {
+            // Replace useless build_command with extra_cmake_args (additional
+            // cmake flags appended to both kiln and cmake fallback commands).
+            "ALTER TABLE projects RENAME COLUMN build_command TO extra_cmake_args",
+            // Worker-reported max build parallelism (0 = use nproc).
+            "ALTER TABLE workers ADD COLUMN max_jobs INT NOT NULL DEFAULT 0",
+        }},
         // Future migrations go here:
     };
     return m;

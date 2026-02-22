@@ -20,6 +20,7 @@ struct HeartbeatRequest {
     int ram_mb{};
     std::string compiler;
     std::string compiler_version;
+    int max_jobs{};
 };
 
 struct PollResponse {
@@ -28,7 +29,7 @@ struct PollResponse {
     std::string repo_url;
     std::string branch;
     std::optional<std::string> pinned_commit;
-    std::optional<std::string> build_command;
+    std::optional<std::string> extra_cmake_args;
     bool run_tests{};
     std::string kiln_git_hash;
 };
@@ -62,7 +63,7 @@ struct ProjectInfo {
     std::string repo_url;
     std::string branch;
     std::optional<std::string> pinned_commit;
-    std::optional<std::string> build_command;
+    std::optional<std::string> extra_cmake_args;
     bool run_tests{};
     std::optional<std::string> test_resource_tier_min;
     std::string resource_tier;
@@ -77,7 +78,7 @@ struct ProjectCreateRequest {
     std::string repo_url;
     std::string branch{"HEAD"};
     std::optional<std::string> pinned_commit;
-    std::optional<std::string> build_command;
+    std::optional<std::string> extra_cmake_args;
     bool run_tests{};
     std::optional<std::string> test_resource_tier_min;
     std::string resource_tier{"small"};
@@ -106,6 +107,7 @@ struct WorkerInfo {
     std::string cpu_model;
     int cores{};
     int ram_mb{};
+    int max_jobs{};
     std::string resource_tier_max;
     std::string dep_level_max;
     std::string last_seen;
@@ -203,6 +205,7 @@ struct WorkerAdminInfo {
     std::string os;
     std::string os_version;
     std::string distro;
+    int max_jobs{};
     std::string resource_tier_max;
     std::string dep_level_max;
     std::string last_seen;

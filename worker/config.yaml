@@ -2,3 +2,4 @@ server_url: http://localhost:7621
 auth_token: test-worker-token-1
 workspace_dir: /tmp/kiln-ci
 poll_interval_seconds: 30
+# max_jobs: 0  # 0 or omit = use all cores (nproc)

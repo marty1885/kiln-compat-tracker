@@ -160,6 +160,7 @@ private:
             .ram_mb = sysinfo_.ram_mb,
             .compiler = compiler_,
             .compiler_version = compiler_version_,
+            .max_jobs = config_.max_jobs,
         };
 
         std::string body;
@@ -231,6 +232,8 @@ private:
             .compiler_version = compiler_version_,
             .project_commit = br.project_commit,
             .kiln_git_hash = kiln_hash,
+            .test_status = br.test_status,
+            .test_duration_seconds = br.test_duration_seconds,
             .cmake_fallback_status = br.cmake_fallback_status,
             .cmake_duration_seconds = br.cmake_duration_seconds,
             .cmake_version = br.cmake_version,

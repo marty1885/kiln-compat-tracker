@@ -15,7 +15,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
 
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
-        "SELECT w.id, w.name, w.auth_token, w.arch, w.os, w.os_version, w.distro, "
+        "SELECT w.id, w.name, w.auth_token, w.arch, w.os, w.os_version, w.distro, w.max_jobs, "
         "w.resource_tier_max::text, w.dep_level_max::text, "
         "to_char(w.last_seen AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_seen, "
         "EXTRACT(EPOCH FROM now() - w.last_seen)::bigint AS age_seconds, "
@@ -35,6 +35,7 @@ Task<HttpResponsePtr> WorkerMgmtApi::list(HttpRequestPtr req) {
             .os = row["os"].as<std::string>(),
             .os_version = row["os_version"].as<std::string>(),
             .distro = row["distro"].as<std::string>(),
+            .max_jobs = row["max_jobs"].as<int>(),
             .resource_tier_max = row["resource_tier_max"].as<std::string>(),
             .dep_level_max = row["dep_level_max"].as<std::string>(),
             .last_seen = row["last_seen"].as<std::string>(),
@@ -61,7 +62,8 @@ Task<HttpResponsePtr> WorkerMgmtApi::create(HttpRequestPtr req) {
     // Validate resource tier
     if (wc.resource_tier_max != "small" &&
         wc.resource_tier_max != "medium" &&
-        wc.resource_tier_max != "large")
+        wc.resource_tier_max != "large" &&
+        wc.resource_tier_max != "xlarge")
         co_return error_response(k400BadRequest, "Invalid resource tier");
 
     if (wc.dep_level_max != "base" &&
@@ -102,7 +104,8 @@ Task<HttpResponsePtr> WorkerMgmtApi::update(HttpRequestPtr req, int64_t id) {
 
     if (wu.resource_tier_max != "small" &&
         wu.resource_tier_max != "medium" &&
-        wu.resource_tier_max != "large")
+        wu.resource_tier_max != "large" &&
+        wu.resource_tier_max != "xlarge")
         co_return error_response(k400BadRequest, "Invalid resource tier");
 
     if (wu.dep_level_max != "base" &&

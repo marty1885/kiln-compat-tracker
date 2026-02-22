@@ -12,6 +12,7 @@ struct WorkerConfig {
     std::string auth_token;
     std::string workspace_dir;
     int poll_interval_seconds = 30;
+    int max_jobs = 0; // 0 = use nproc
 
     // Derived paths
     std::string kiln_source_dir() const { return (std::filesystem::path(workspace_dir) / "kiln").string(); }
@@ -32,6 +33,8 @@ struct WorkerConfig {
             c.workspace_dir = "/tmp/kiln-ci";
         if (yaml["poll_interval_seconds"])
             c.poll_interval_seconds = yaml["poll_interval_seconds"].as<int>();
+        if (yaml["max_jobs"])
+            c.max_jobs = yaml["max_jobs"].as<int>();
 
         c.workspace_dir = expand_home(c.workspace_dir);
         return c;

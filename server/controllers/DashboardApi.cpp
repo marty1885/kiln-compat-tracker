@@ -82,7 +82,7 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
         "SELECT w.id, w.name, w.arch, w.os, w.os_version, w.distro, w.cpu_model, "
-        "w.cores, w.ram_mb, w.resource_tier_max::text, w.dep_level_max::text, "
+        "w.cores, w.ram_mb, w.max_jobs, w.resource_tier_max::text, w.dep_level_max::text, "
         "to_char(w.last_seen AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_seen, "
         "EXTRACT(EPOCH FROM now() - w.last_seen)::bigint AS age_seconds, "
         "p.name AS current_job "
@@ -103,6 +103,7 @@ Task<HttpResponsePtr> DashboardApi::workers(HttpRequestPtr req) {
             .cpu_model = row["cpu_model"].as<std::string>(),
             .cores = row["cores"].as<int>(),
             .ram_mb = row["ram_mb"].as<int>(),
+            .max_jobs = row["max_jobs"].as<int>(),
             .resource_tier_max = row["resource_tier_max"].as<std::string>(),
             .dep_level_max = row["dep_level_max"].as<std::string>(),
             .last_seen = row["last_seen"].as<std::string>(),

@@ -6,13 +6,14 @@
 namespace kiln {
 
 // Resource tiers — maps to DB enum
-enum class ResourceTier { Small, Medium, Large };
+enum class ResourceTier { Small, Medium, Large, XLarge };
 
 inline std::string resource_tier_to_string(ResourceTier t) {
     switch (t) {
         case ResourceTier::Small: return "small";
         case ResourceTier::Medium: return "medium";
         case ResourceTier::Large: return "large";
+        case ResourceTier::XLarge: return "xlarge";
     }
     return "small";
 }
@@ -20,6 +21,7 @@ inline std::string resource_tier_to_string(ResourceTier t) {
 inline ResourceTier resource_tier_from_string(const std::string& s) {
     if (s == "medium") return ResourceTier::Medium;
     if (s == "large") return ResourceTier::Large;
+    if (s == "xlarge") return ResourceTier::XLarge;
     return ResourceTier::Small;
 }
 

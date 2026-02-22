@@ -12,7 +12,7 @@ namespace kiln {
 Task<HttpResponsePtr> ProjectApi::list(HttpRequestPtr req) {
     auto db = app().getDbClient();
     auto r = co_await db->execSqlCoro(
-        "SELECT id, name, repo_url, branch, pinned_commit, build_command, "
+        "SELECT id, name, repo_url, branch, pinned_commit, extra_cmake_args, "
         "run_tests, test_resource_tier_min::text, resource_tier::text, "
         "dep_level::text, os_filter, cooldown_minutes, enabled "
         "FROM projects ORDER BY name");
@@ -26,8 +26,8 @@ Task<HttpResponsePtr> ProjectApi::list(HttpRequestPtr req) {
             .branch = row["branch"].as<std::string>(),
             .pinned_commit = row["pinned_commit"].isNull()
                 ? std::nullopt : std::optional{row["pinned_commit"].as<std::string>()},
-            .build_command = row["build_command"].isNull()
-                ? std::nullopt : std::optional{row["build_command"].as<std::string>()},
+            .extra_cmake_args = row["extra_cmake_args"].isNull()
+                ? std::nullopt : std::optional{row["extra_cmake_args"].as<std::string>()},
             .run_tests = row["run_tests"].as<bool>(),
             .test_resource_tier_min = row["test_resource_tier_min"].isNull()
                 ? std::nullopt : std::optional{row["test_resource_tier_min"].as<std::string>()},
@@ -52,14 +52,14 @@ Task<HttpResponsePtr> ProjectApi::create(HttpRequestPtr req) {
 
     auto db = app().getDbClient();
     auto binder = *db <<
-        "INSERT INTO projects (name, repo_url, branch, pinned_commit, build_command, "
+        "INSERT INTO projects (name, repo_url, branch, pinned_commit, extra_cmake_args, "
         "run_tests, test_resource_tier_min, resource_tier, dep_level, os_filter, cooldown_minutes) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7::resource_tier, $8::resource_tier, $9::dep_level, $10, $11) "
         "RETURNING id";
 
     binder << pc.name << pc.repo_url << pc.branch;
     if (pc.pinned_commit) binder << *pc.pinned_commit; else binder << nullptr;
-    if (pc.build_command) binder << *pc.build_command; else binder << nullptr;
+    if (pc.extra_cmake_args) binder << *pc.extra_cmake_args; else binder << nullptr;
     binder << pc.run_tests;
     if (pc.test_resource_tier_min) binder << *pc.test_resource_tier_min; else binder << nullptr;
     binder << pc.resource_tier << pc.dep_level << pc.os_filter << pc.cooldown_minutes;
@@ -80,13 +80,13 @@ Task<HttpResponsePtr> ProjectApi::update(HttpRequestPtr req, int64_t id) {
     auto db = app().getDbClient();
     auto binder = *db <<
         "UPDATE projects SET name=$1, repo_url=$2, branch=$3, pinned_commit=$4, "
-        "build_command=$5, run_tests=$6, test_resource_tier_min=$7::resource_tier, "
+        "extra_cmake_args=$5, run_tests=$6, test_resource_tier_min=$7::resource_tier, "
         "resource_tier=$8::resource_tier, dep_level=$9::dep_level, os_filter=$10, "
         "cooldown_minutes=$11 WHERE id=$12";
 
     binder << pc.name << pc.repo_url << pc.branch;
     if (pc.pinned_commit) binder << *pc.pinned_commit; else binder << nullptr;
-    if (pc.build_command) binder << *pc.build_command; else binder << nullptr;
+    if (pc.extra_cmake_args) binder << *pc.extra_cmake_args; else binder << nullptr;
     binder << pc.run_tests;
     if (pc.test_resource_tier_min) binder << *pc.test_resource_tier_min; else binder << nullptr;
     binder << pc.resource_tier << pc.dep_level << pc.os_filter << pc.cooldown_minutes << id;

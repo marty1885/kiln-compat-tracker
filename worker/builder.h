@@ -14,6 +14,9 @@ struct BuildResult {
     std::string log;
     std::string project_commit;
 
+    std::optional<std::string> test_status;
+    std::optional<int> test_duration_seconds;
+
     std::optional<std::string> cmake_fallback_status;
     std::optional<int> cmake_duration_seconds;
     std::optional<std::string> cmake_version;

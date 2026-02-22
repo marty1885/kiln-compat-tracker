@@ -235,12 +235,13 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
         <label>Git Repo URL <input type="text" id="proj-url" placeholder="https://github.com/..."></label>
         <label>Branch <input type="text" id="proj-branch" value="HEAD"></label>
         <label>Pinned Commit (optional) <input type="text" id="proj-pinned"></label>
-        <label>Build Command Override (optional) <input type="text" id="proj-build-cmd"></label>
+        <label>Extra CMake Args (optional) <input type="text" id="proj-extra-cmake-args" placeholder="-DFOO=BAR -DBAZ=ON"></label>
         <label>Resource Tier
             <select id="proj-tier">
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
                 <option value="large">Large</option>
+                <option value="xlarge">XLarge</option>
             </select>
         </label>
         <label>Dep Level
@@ -272,6 +273,7 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
                 <option value="large">Large</option>
+                <option value="xlarge">XLarge</option>
             </select>
         </label>
         <label>Max Dep Level
@@ -319,6 +321,7 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
                 <option value="large">Large</option>
+                <option value="xlarge">XLarge</option>
             </select>
         </label>
         <label>Max Dep Level
@@ -597,7 +600,7 @@ function openAddProject() {
     document.getElementById('proj-url').value = '';
     document.getElementById('proj-branch').value = 'HEAD';
     document.getElementById('proj-pinned').value = '';
-    document.getElementById('proj-build-cmd').value = '';
+    document.getElementById('proj-extra-cmake-args').value = '';
     document.getElementById('proj-tier').value = 'small';
     document.getElementById('proj-dep-level').value = 'base';
     document.getElementById('proj-os-filter').value = '';
@@ -616,7 +619,7 @@ async function editProject(id) {
     document.getElementById('proj-url').value = p.repo_url;
     document.getElementById('proj-branch').value = p.branch;
     document.getElementById('proj-pinned').value = p.pinned_commit || '';
-    document.getElementById('proj-build-cmd').value = p.build_command || '';
+    document.getElementById('proj-extra-cmake-args').value = p.extra_cmake_args || '';
     document.getElementById('proj-tier').value = p.resource_tier;
     document.getElementById('proj-dep-level').value = p.dep_level || 'base';
     document.getElementById('proj-os-filter').value = p.os_filter || '';
@@ -643,8 +646,8 @@ async function saveProject() {
     };
     const pinned = document.getElementById('proj-pinned').value;
     if (pinned) data.pinned_commit = pinned;
-    const buildCmd = document.getElementById('proj-build-cmd').value;
-    if (buildCmd) data.build_command = buildCmd;
+    const extraArgs = document.getElementById('proj-extra-cmake-args').value;
+    if (extraArgs) data.extra_cmake_args = extraArgs;
 
     const url = id ? API + '/api/v1/projects/' + id : API + '/api/v1/projects';
     const method = id ? 'PUT' : 'POST';
@@ -684,7 +687,8 @@ async function loadWorkers() {
             html += '<h3>' + escHtml(w.name) + ' <span class="' + (online ? 'online' : 'offline') + '">(' + (online ? 'online' : 'offline') + ')</span></h3>';
             const distroStr = w.distro ? ' / ' + escHtml(w.distro) : '';
             html += '<div class="detail">' + escHtml(w.arch) + distroStr + ' / ' + escHtml(w.os) + ' ' + escHtml(w.os_version) + '</div>';
-            html += '<div class="detail">' + escHtml(w.cpu_model) + ' &middot; ' + w.cores + ' cores &middot; ' + w.ram_mb + ' MB</div>';
+            const jobsStr = w.max_jobs > 0 ? w.max_jobs + ' jobs' : 'auto';
+            html += '<div class="detail">' + escHtml(w.cpu_model) + ' &middot; ' + w.cores + ' cores (' + jobsStr + ') &middot; ' + w.ram_mb + ' MB</div>';
             html += '<div class="detail">Tier: ' + escHtml(w.resource_tier_max) + ' &middot; Dep: ' + escHtml(w.dep_level_max) + ' &middot; Last seen: ' + timeAgo(w.last_seen) + '</div>';
             if (w.current_job) html += '<div class="detail">Building: <span class="job-badge">' + escHtml(w.current_job) + '</span></div>';
             html += '</div>';
