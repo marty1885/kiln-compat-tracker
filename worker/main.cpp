@@ -5,7 +5,10 @@
 
 #include <drogon/drogon.h>
 #include <drogon/HttpClient.h>
+#include <drogon/utils/Utilities.h>
 #include <glaze/glaze.hpp>
+
+#include <trantor/net/EventLoopThread.h>
 
 #include <iostream>
 #include <random>
@@ -31,6 +34,8 @@ public:
         , compiler_version_(detect_compiler_version())
         , rng_(std::random_device{}()) {
 
+        build_thread_ = std::make_unique<trantor::EventLoopThread>("BuildThread");
+        build_thread_->run();
         client_ = HttpClient::newHttpClient(config_.server_url);
     }
 
@@ -110,7 +115,20 @@ private:
         const auto &job = *outcome.job;
         std::cout << "Got job #" << job.job_id << ": " << job.project_name << "\n";
 
-        // Prepare project
+        // Send heartbeats periodically while prep + build runs, since these
+        // can take minutes/hours and the server reaps jobs with stale heartbeats.
+        auto *main_loop = trantor::EventLoop::getEventLoopOfCurrentThread();
+        auto heartbeat_timer = main_loop->runEvery(
+            static_cast<double>(config_.poll_interval_seconds), [this] {
+                drogon::async_run([this]() -> Task<> {
+                    co_await send_heartbeat();
+                });
+            });
+
+        // Run prep + build on a separate thread so the event loop stays
+        // responsive for heartbeats and network I/O.
+        co_await switchThreadCoro(build_thread_->getLoop());
+
         std::string project_dir;
         std::string project_commit;
         std::string actual_kiln_hash;
@@ -126,14 +144,19 @@ private:
             prep_error = e.what();
         }
 
+        BuildResult build_result;
+        if (!prep_failed)
+            build_result = run_build(config_, job, project_dir);
+
+        co_await switchThreadCoro(main_loop);
+        main_loop->invalidateTimer(heartbeat_timer);
+
         if (prep_failed) {
             std::cerr << "  Failed to prepare project: " << prep_error << "\n";
             co_await submit_error_result(job, "", actual_kiln_hash);
             co_return LoopResult::work_done;
         }
 
-        // Run build (blocking — runs in the calling thread)
-        auto build_result = run_build(config_, job, project_dir);
         build_result.project_commit = project_commit;
 
         // Submit result
@@ -246,11 +269,18 @@ private:
             co_return;
         }
 
+        auto compressed = drogon::utils::gzipCompress(body.data(), body.size());
+        if (compressed.empty()) {
+            std::cerr << "Failed to gzip-compress result body\n";
+            co_return;
+        }
+
         auto req = HttpRequest::newHttpRequest();
         req->setMethod(Post);
         req->setPath("/api/v1/worker/result");
         req->setContentTypeCode(CT_APPLICATION_JSON);
-        req->setBody(std::move(body));
+        req->addHeader("Content-Encoding", "gzip");
+        req->setBody(std::move(compressed));
         req->addHeader("Authorization", "Bearer " + config_.auth_token);
 
         auto resp = co_await send_request(req);
@@ -277,11 +307,15 @@ private:
         std::string body;
         if (auto err = glz::write_json(rr, body); err) co_return;
 
+        auto compressed = drogon::utils::gzipCompress(body.data(), body.size());
+        if (compressed.empty()) co_return;
+
         auto req = HttpRequest::newHttpRequest();
         req->setMethod(Post);
         req->setPath("/api/v1/worker/result");
         req->setContentTypeCode(CT_APPLICATION_JSON);
-        req->setBody(std::move(body));
+        req->addHeader("Content-Encoding", "gzip");
+        req->setBody(std::move(compressed));
         req->addHeader("Authorization", "Bearer " + config_.auth_token);
 
         co_await send_request(req);
@@ -306,6 +340,7 @@ private:
     HttpClientPtr client_;
     std::mt19937 rng_;
     std::chrono::steady_clock::time_point last_heartbeat_{};
+    std::unique_ptr<trantor::EventLoopThread> build_thread_;
 };
 
 int main(int argc, char *argv[]) {
