@@ -179,6 +179,9 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "Kiln Compat Tracker starting on http://localhost:7621\n";
-    app.run();
+    app
+        .setClientMaxMemoryBodySize(100 * 1024 * 1024) // max 100M body size
+        .setClientMaxBodySize(100 * 1024 * 1024) // max 100M overall request size
+        .run();
     return 0;
 }
