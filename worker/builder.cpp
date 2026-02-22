@@ -145,15 +145,17 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
     BuildResult result;
     auto kiln_binary = (fs::path(config.kiln_source_dir()) / "build" / "kiln").string();
 
+    // Out-of-source build dir so we don't clobber source dirs named "build/"
+    auto build_dir = (fs::path(project_dir).parent_path() / "_kiln_compat_build").string();
+
     // Determine build command
-    std::string kiln_cmd = kiln_binary + " -C " + project_dir + " --config release";
+    std::string kiln_cmd = kiln_binary + " -C " + project_dir + " -B " + build_dir + " --config release";
     if (config.max_jobs > 0)
         kiln_cmd += " -j" + std::to_string(config.max_jobs);
     if (job.extra_cmake_args && !job.extra_cmake_args->empty())
         kiln_cmd += " " + *job.extra_cmake_args;
 
     // Clean any previous build
-    auto build_dir = project_dir + "/build";
     if (fs::exists(build_dir))
         fs::remove_all(build_dir);
 
@@ -168,7 +170,7 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
 
         // Run tests via kiln's test subcommand (builds with BUILD_TESTING=ON and runs)
         if (job.run_tests) {
-            std::string test_cmd = kiln_binary + " -C " + project_dir + " --config release";
+            std::string test_cmd = kiln_binary + " -C " + project_dir + " -B " + build_dir + " --config release";
             if (config.max_jobs > 0)
                 test_cmd += " -j" + std::to_string(config.max_jobs);
             if (job.extra_cmake_args && !job.extra_cmake_args->empty())
@@ -182,6 +184,10 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
             result.log += "\n\n=== TESTS ===\n" + test_result.output;
         }
 
+        // Clean up build artifacts
+        if (fs::exists(build_dir))
+            fs::remove_all(build_dir);
+
         return result;
     }
 
@@ -194,7 +200,7 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
     if (cmake_ver.exit_code == 0)
         result.cmake_version = trim_newlines(cmake_ver.output);
 
-    // Clean again for cmake
+    // Clean build dir for cmake fallback
     if (fs::exists(build_dir))
         fs::remove_all(build_dir);
 
@@ -217,6 +223,10 @@ BuildResult run_build(const WorkerConfig &config, const PollResponse &job,
     result.cmake_log = std::move(cmake_result.output);
 
     result.cmake_fallback_status = (cmake_result.exit_code == 0) ? "pass" : "fail";
+
+    // Clean up build artifacts — they can be huge and we have the results
+    if (fs::exists(build_dir))
+        fs::remove_all(build_dir);
 
     return result;
 }
