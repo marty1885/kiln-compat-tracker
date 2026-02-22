@@ -99,6 +99,34 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
 .token-display { background: #0d1117; border: 1px solid #238636; border-radius: 4px; padding: 12px; margin-top: 12px; }
 .token-display code { font-size: 14px; color: #3fb950; word-break: break-all; }
 .token-display .warning { color: #d29922; font-size: 12px; margin-top: 6px; }
+
+/* Scrollable table wrapper */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    nav { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+    nav h1 { width: 100%; font-size: 16px; }
+    nav button { padding: 6px 10px; font-size: 12px; }
+    .nav-spacer { display: none; }
+    .nav-user { margin-left: auto; }
+
+    .container { padding: 12px; }
+    .section-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .legend { gap: 10px; }
+
+    .matrix-table { font-size: 12px; }
+    .matrix-table th, .matrix-table td { padding: 6px; white-space: nowrap; }
+
+    .project-list, .history-table, .admin-table { font-size: 12px; }
+    .project-list th, .project-list td,
+    .history-table th, .history-table td,
+    .admin-table th, .admin-table td { padding: 6px 8px; white-space: nowrap; }
+
+    .worker-cards { grid-template-columns: 1fr; }
+
+    .modal { padding: 16px; width: 95vw; }
+}
 </style>
 </head>
 <body>
@@ -522,7 +550,7 @@ function renderMatrix() {
     const sortedPlatforms = [...platforms].sort();
     const sortedProjects = Object.keys(projects).sort();
 
-    let html = '<table class="matrix-table"><thead><tr><th>Project</th>';
+    let html = '<div class="table-scroll"><table class="matrix-table"><thead><tr><th>Project</th>';
     for (const p of sortedPlatforms) html += '<th>' + escHtml(p) + '</th>';
     html += '</tr></thead><tbody>';
 
@@ -546,7 +574,7 @@ function renderMatrix() {
         }
         html += '</tr>';
     }
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     document.getElementById('matrix-container').innerHTML = html;
 }
 
@@ -574,7 +602,7 @@ async function loadProjects() {
             document.getElementById('projects-container').innerHTML = '<p style="color:#8b949e">No projects yet.</p>';
             return;
         }
-        let html = '<table class="project-list"><thead><tr><th>Name</th><th>Repo</th><th>Branch</th><th>Tier</th><th>Dep Level</th><th>OS Filter</th><th>Cooldown</th><th>Tests</th><th>Status</th>';
+        let html = '<div class="table-scroll"><table class="project-list"><thead><tr><th>Name</th><th>Repo</th><th>Branch</th><th>Tier</th><th>Dep Level</th><th>OS Filter</th><th>Cooldown</th><th>Tests</th><th>Status</th>';
         if (authState.logged_in) html += '<th>Actions</th>';
         html += '</tr></thead><tbody>';
         for (const p of projects) {
@@ -598,7 +626,7 @@ async function loadProjects() {
             }
             html += '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         document.getElementById('projects-container').innerHTML = html;
     } catch(e) {
         document.getElementById('projects-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
@@ -754,7 +782,7 @@ async function loadAdminWorkers() {
             document.getElementById('admin-workers-container').innerHTML = '<p style="color:#8b949e">No workers yet. Add one above.</p>';
             return;
         }
-        let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Dep Level</th><th>Arch/Distro/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<div class="table-scroll"><table class="admin-table"><thead><tr><th>Name</th><th>Tier</th><th>Dep Level</th><th>Arch/Distro/OS</th><th>Last Seen</th><th>Status</th><th>Token</th><th>Actions</th></tr></thead><tbody>';
         for (const w of workers) {
             const online = w.age_seconds < 5 * 60;
             html += '<tr>';
@@ -775,7 +803,7 @@ async function loadAdminWorkers() {
             html += '</td>';
             html += '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         document.getElementById('admin-workers-container').innerHTML = html;
     } catch(e) {
         document.getElementById('admin-workers-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
@@ -1001,7 +1029,7 @@ async function showHistory(projectId, name, push = true) {
             document.getElementById('history-container').innerHTML = '<p style="color:#8b949e">No builds yet.</p>';
             return;
         }
-        let html = '<table class="history-table"><thead><tr><th>Kiln Hash</th><th>Project Commit</th><th>Worker</th><th>Compiler</th><th>Status</th><th>CMake Fallback</th><th>Duration</th><th>Finished</th><th>Logs</th></tr></thead><tbody>';
+        let html = '<div class="table-scroll"><table class="history-table"><thead><tr><th>Kiln Hash</th><th>Project Commit</th><th>Worker</th><th>Compiler</th><th>Status</th><th>CMake Fallback</th><th>Duration</th><th>Finished</th><th>Logs</th></tr></thead><tbody>';
         for (const b of results) {
             const statusCls = b.status === 'pass' ? 'status-pass' :
                               (b.cmake_fallback_status === 'pass' ? 'status-fail' : 'status-both-fail');
@@ -1026,7 +1054,7 @@ async function showHistory(projectId, name, push = true) {
             html += '<td>' + (logLinks || '-') + '</td>';
             html += '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         document.getElementById('history-container').innerHTML = html;
     } catch(e) {
         document.getElementById('history-container').innerHTML = '<p>Error: ' + escHtml(e.message) + '</p>';
