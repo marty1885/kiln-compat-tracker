@@ -70,6 +70,11 @@ std::string prepare_project(const WorkerConfig &config, const PollResponse &job)
         run_command("git -C " + dir + " pull --ff-only");
     }
 
+    // Initialize/update submodules with shallow depth
+    auto sub = run_command("git -C " + dir + " submodule update --init --depth 1");
+    if (sub.exit_code != 0)
+        std::cerr << "  Warning: submodule update failed: " << sub.output << "\n";
+
     // Get actual HEAD hash
     auto hash_result = run_command("git -C " + dir + " rev-parse HEAD");
     return trim_newlines(hash_result.output);
