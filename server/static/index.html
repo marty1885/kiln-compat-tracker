@@ -642,7 +642,7 @@ function autoFillProjectName() {
             let project = segments[1];
             // strip .git suffix
             if (project.endsWith('.git')) project = project.slice(0, -4);
-            if (project) nameField.value = project;
+            if (project) nameField.value = segments[0] + '/' + project;
         }
     } catch(e) {
         // not a valid URL yet, ignore
