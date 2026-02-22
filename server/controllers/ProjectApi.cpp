@@ -127,6 +127,12 @@ Task<HttpResponsePtr> ProjectApi::trigger(HttpRequestPtr req, int64_t id) {
         "UPDATE projects SET forced_rebuild_after = now() WHERE id=$1",
         id);
 
+    // Clear any active jobs so the project is immediately re-schedulable.
+    // Without this, stale jobs from crashed workers (or even live ones) block
+    // the NOT EXISTS(active_jobs) check in the scheduler query.
+    co_await db->execSqlCoro(
+        "DELETE FROM active_jobs WHERE project_id = $1", id);
+
     co_return error_response(k200OK);
 }
 
