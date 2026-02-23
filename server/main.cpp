@@ -69,10 +69,10 @@ int main(int argc, char *argv[]) {
     app.getLoop()->runEvery(60.0, [] {
         auto db = drogon::app().getDbClient();
 
-        // Mark jobs as reaped if heartbeat is stale (>10 min)
+        // Mark jobs as reaped if heartbeat is stale (>4 hours)
         db->execSqlAsync(
             "UPDATE active_jobs SET reaped_at = now() "
-            "WHERE heartbeat_at < now() - interval '10 minutes' "
+            "WHERE heartbeat_at < now() - interval '4 hours' "
             "AND reaped_at IS NULL",
             [](const drogon::orm::Result &r) {
                 if (r.affectedRows() > 0)
