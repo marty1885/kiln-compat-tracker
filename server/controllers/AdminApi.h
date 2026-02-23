@@ -15,6 +15,7 @@ public:
     ADD_METHOD_TO(AdminApi::invite, "/api/v1/auth/invite", drogon::Post);
     ADD_METHOD_TO(AdminApi::getKilnHash, "/api/v1/admin/kiln-hash", drogon::Get);
     ADD_METHOD_TO(AdminApi::setKilnHash, "/api/v1/admin/kiln-hash", drogon::Post);
+    ADD_METHOD_TO(AdminApi::triggerKilnPoll, "/api/v1/admin/poll-kiln", drogon::Post);
     METHOD_LIST_END
 
     drogon::Task<drogon::HttpResponsePtr> status(drogon::HttpRequestPtr req);
@@ -24,6 +25,7 @@ public:
     drogon::Task<drogon::HttpResponsePtr> invite(drogon::HttpRequestPtr req);
     drogon::Task<drogon::HttpResponsePtr> getKilnHash(drogon::HttpRequestPtr req);
     drogon::Task<drogon::HttpResponsePtr> setKilnHash(drogon::HttpRequestPtr req);
+    drogon::Task<drogon::HttpResponsePtr> triggerKilnPoll(drogon::HttpRequestPtr req);
 };
 
 } // namespace kiln

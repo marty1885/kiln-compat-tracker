@@ -1,6 +1,7 @@
 #include "AdminApi.h"
 #include "common/protocol.h"
 #include "server/auth.h"
+#include "server/config.h"
 #include "server/json_response.h"
 #include <drogon/Cookie.h>
 #include <drogon/orm/DbClient.h>
@@ -184,6 +185,18 @@ Task<HttpResponsePtr> AdminApi::setKilnHash(HttpRequestPtr req) {
         "UPDATE config SET value=$1 WHERE key='current_kiln_hash'",
         kr.git_hash);
 
+    co_return error_response(k200OK);
+}
+
+Task<HttpResponsePtr> AdminApi::triggerKilnPoll(HttpRequestPtr req) {
+    if (!is_admin(req))
+        co_return error_response(k401Unauthorized);
+
+    if (!kiln::poll_kiln_head) {
+        co_return error_response(k503ServiceUnavailable, "Poller not initialized");
+    }
+
+    kiln::poll_kiln_head();
     co_return error_response(k200OK);
 }
 

@@ -215,8 +215,10 @@ nav button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
                 Current kiln hash tracked by the scheduler. Workers will build against this commit.
                 <!-- TODO: This will be set automatically by a GitHub API poller. For now, set manually. -->
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
                 <code id="current-kiln-hash" style="color:#3fb950;font-size:14px">loading...</code>
+                <button class="btn" id="poll-now-btn" onclick="pollKilnNow()">Poll Now</button>
+                <span id="poll-now-status" style="font-size:12px;color:#8b949e"></span>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
                 <input type="text" id="kiln-hash-input" placeholder="Full git commit hash (40 hex chars)"
@@ -984,6 +986,31 @@ async function generateInvite() {
 }
 
 // --- Kiln hash ---
+async function pollKilnNow() {
+    const btn = document.getElementById('poll-now-btn');
+    const status = document.getElementById('poll-now-status');
+    btn.disabled = true;
+    status.textContent = 'Polling...';
+    status.style.color = '#8b949e';
+    try {
+        const res = await fetch(API + '/api/v1/admin/poll-kiln', { method: 'POST' });
+        if (!res.ok) {
+            status.textContent = 'Failed: ' + ((await res.text()) || res.status);
+            status.style.color = '#f85149';
+        } else {
+            status.textContent = 'Poll triggered — check server logs for result';
+            status.style.color = '#3fb950';
+            // Refresh hash display after a short delay to pick up any update
+            setTimeout(loadKilnHash, 3000);
+        }
+    } catch(e) {
+        status.textContent = e.message;
+        status.style.color = '#f85149';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 async function loadKilnHash() {
     try {
         const r = await fetchJson(API + '/api/v1/admin/kiln-hash');

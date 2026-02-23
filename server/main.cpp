@@ -103,6 +103,7 @@ int main(int argc, char *argv[]) {
     auto pollKilnHead = [] {
         drogon::async_run([&]() -> drogon::Task<> {
             try {
+                std::cout << "Kiln poller: starting poll\n";
                 auto client = drogon::HttpClient::newHttpClient(
                     "https://api.github.com", drogon::app().getLoop());
                 auto req = drogon::HttpRequest::newHttpRequest();
@@ -113,19 +114,22 @@ int main(int argc, char *argv[]) {
 
                 auto resp = co_await client->sendRequestCoro(req);
                 if (resp->statusCode() != drogon::k200OK) {
-                    std::cerr << "GitHub API returned " << resp->statusCode()
+                    std::cerr << "Kiln poller: GitHub API returned " << resp->statusCode()
                               << ": " << resp->body() << "\n";
                     co_return;
                 }
 
                 GhCommitResponse gc;
                 auto body = std::string(resp->body());
-                if (auto err = glz::read_json(gc, body); err) {
-                    std::cerr << "Failed to parse GitHub response: "
+                if (auto err = glz::read<glz::opts{.error_on_unknown_keys = false}>(gc, body); err) {
+                    std::cerr << "Kiln poller: failed to parse GitHub response: "
                               << glz::format_error(err, body) << "\n";
                     co_return;
                 }
-                if (gc.sha.empty()) co_return;
+                if (gc.sha.empty()) {
+                    std::cerr << "Kiln poller: parsed response but sha is empty\n";
+                    co_return;
+                }
 
                 auto db = drogon::app().getDbClient();
                 auto r = co_await db->execSqlCoro(
@@ -151,6 +155,8 @@ int main(int argc, char *argv[]) {
             }
         });
     };
+
+    kiln::poll_kiln_head = pollKilnHead;
 
     // Schedule polls at 00:00 and 12:00 UTC, repeating daily.
     {
