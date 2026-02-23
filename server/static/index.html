@@ -516,8 +516,32 @@ function showTab(name, push = true) {
 
 // --- Matrix ---
 let matrixData = [];
+function handleUnauthorized() {
+    authState = { logged_in: false, username: '', needs_setup: false };
+    updateAuthUI();
+    if (document.getElementById('tab-admin').classList.contains('active'))
+        showTab('matrix');
+}
+
+// Like fetch(), but intercepts 401 globally. Use for all non-auth API calls.
+async function apiFetch(url, opts) {
+    const res = await fetch(url, opts);
+    if (res.status === 401) {
+        handleUnauthorized();
+        throw new Error('Session expired — please log in again');
+    }
+    return res;
+}
+
 async function fetchJson(url) {
     const res = await fetch(url);
+    if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+}
+
+async function adminFetchJson(url) {
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
     const text = await res.text();
     return text ? JSON.parse(text) : [];
@@ -726,7 +750,7 @@ async function saveProject() {
 
     const url = id ? API + '/api/v1/projects/' + id : API + '/api/v1/projects';
     const method = id ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+    await apiFetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
     closeModal();
     loadProjects();
 }
@@ -779,7 +803,7 @@ async function loadWorkers() {
 
 async function loadAdminWorkers() {
     try {
-        const workers = await fetchJson(API + '/api/v1/admin/workers');
+        const workers = await adminFetchJson(API + '/api/v1/admin/workers');
         if (!workers.length) {
             document.getElementById('admin-workers-container').innerHTML = '<p style="color:#8b949e">No workers yet. Add one above.</p>';
             return;
@@ -835,7 +859,7 @@ async function confirmRevealToken() {
         return;
     }
     try {
-        const res = await fetch(API + '/api/v1/admin/workers/' + id + '/token', {
+        const res = await apiFetch(API + '/api/v1/admin/workers/' + id + '/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password })
@@ -889,7 +913,7 @@ async function saveWorker() {
     }
 
     try {
-        const res = await fetch(API + '/api/v1/admin/workers', {
+        const res = await apiFetch(API + '/api/v1/admin/workers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, resource_tier_max: tier, dep_level_max: depLevel })
@@ -922,7 +946,7 @@ function copyToken(token) {
 
 async function deleteWorker(id, name) {
     if (!confirm('Delete worker "' + name + '"? Active jobs will be removed. Build history will be preserved with "(deleted)" as the worker name.')) return;
-    await fetch(API + '/api/v1/admin/workers/' + id, { method: 'DELETE' });
+    await apiFetch(API + '/api/v1/admin/workers/' + id, { method: 'DELETE' });
     loadAdminWorkers();
 }
 
@@ -949,7 +973,7 @@ async function saveWorkerEdit() {
         return;
     }
     try {
-        const res = await fetch(API + '/api/v1/admin/workers/' + id, {
+        const res = await apiFetch(API + '/api/v1/admin/workers/' + id, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, resource_tier_max: tier, dep_level_max: depLevel })
@@ -968,7 +992,7 @@ async function saveWorkerEdit() {
 
 async function generateInvite() {
     try {
-        const res = await fetch(API + '/api/v1/auth/invite', { method: 'POST' });
+        const res = await apiFetch(API + '/api/v1/auth/invite', { method: 'POST' });
         if (!res.ok) {
             document.getElementById('invite-result').innerHTML = '<p class="error-msg">Failed to generate invite</p>';
             return;
@@ -993,14 +1017,13 @@ async function pollKilnNow() {
     status.textContent = 'Polling...';
     status.style.color = '#8b949e';
     try {
-        const res = await fetch(API + '/api/v1/admin/poll-kiln', { method: 'POST' });
+        const res = await apiFetch(API + '/api/v1/admin/poll-kiln', { method: 'POST' });
         if (!res.ok) {
             status.textContent = 'Failed: ' + ((await res.text()) || res.status);
             status.style.color = '#f85149';
         } else {
-            status.textContent = 'Poll triggered — check server logs for result';
+            status.textContent = 'OK';
             status.style.color = '#3fb950';
-            // Refresh hash display after a short delay to pick up any update
             setTimeout(loadKilnHash, 3000);
         }
     } catch(e) {
@@ -1013,7 +1036,7 @@ async function pollKilnNow() {
 
 async function loadKilnHash() {
     try {
-        const r = await fetchJson(API + '/api/v1/admin/kiln-hash');
+        const r = await adminFetchJson(API + '/api/v1/admin/kiln-hash');
         document.getElementById('current-kiln-hash').textContent = r.git_hash || '(not set)';
     } catch(e) {
         document.getElementById('current-kiln-hash').textContent = '(error)';
@@ -1026,7 +1049,7 @@ async function setKilnHash() {
     errEl.textContent = '';
     if (!hash) { errEl.textContent = 'Hash required'; return; }
     try {
-        const res = await fetch(API + '/api/v1/admin/kiln-hash', {
+        const res = await apiFetch(API + '/api/v1/admin/kiln-hash', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ git_hash: hash })
