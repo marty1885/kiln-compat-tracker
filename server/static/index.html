@@ -1038,10 +1038,10 @@ async function showHistory(projectId, name, push = true) {
                                  (b.cmake_fallback_status ? 'both fail' : b.status));
             let logLinks = '';
             if (b.has_log)
-                logLinks += '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/log" download>Build</a>';
+                logLinks += '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/log" download rel="nofollow">Build</a>';
             if (b.has_cmake_log)
                 logLinks += (logLinks ? ' ' : '') +
-                    '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/cmake-log" download>CMake</a>';
+                    '<a href="' + API + '/api/v1/dashboard/build/' + b.id + '/cmake-log" download rel="nofollow">CMake</a>';
             html += '<tr>';
             html += '<td><code>' + escHtml(b.kiln_hash.substring(0, 8)) + '</code></td>';
             html += '<td><code>' + escHtml(b.project_commit.substring(0, 8)) + '</code></td>';
